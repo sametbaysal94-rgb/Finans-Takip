@@ -75,12 +75,119 @@ function ozetiYenile() {
   // Kalan eksiye düştüyse kırmızıya çevir — göz hemen fark etsin.
   bul("kart-kalan").classList.toggle("eksi", ozet.kalan < 0);
 
+  // --- Bu aydan uzaklaştıysak dönüş düğmesini göster ---
+  if (ayniAy(secilenAy, bugununAyi())) gizle(bul("bugune-don"));
+  else goster(bul("bugune-don"));
+
+  // --- Listeyi çiz ---
+  const ayinKayitlari = ayKayitlari(kayitlar, secilenAy.yil, secilenAy.ay);
+
   // O ayda hiç kayıt yoksa kullanıcı "bozuk mu?" diye düşünmesin.
-  const ayinKayitSayisi = ayKayitlari(kayitlar, secilenAy.yil, secilenAy.ay).length;
-  const bosMesaj = bul("ay-bos");
-  if (ayinKayitSayisi === 0) goster(bosMesaj);
-  else gizle(bosMesaj);
+  if (ayinKayitlari.length === 0) goster(bul("ay-bos"));
+  else gizle(bul("ay-bos"));
+
+  listeyiCiz(ayinKayitlari);
 }
+
+// ============================================================
+// AY GEZİNME
+// ============================================================
+
+function ayiKaydir(adim) {
+  secilenAy = ayKaydir(secilenAy.yil, secilenAy.ay, adim);
+  ozetiYenile();
+}
+
+bul("ay-geri").addEventListener("click", () => ayiKaydir(-1));
+bul("ay-ileri").addEventListener("click", () => ayiKaydir(1));
+bul("bugune-don").addEventListener("click", () => {
+  secilenAy = bugununAyi();
+  ozetiYenile();
+});
+
+// ============================================================
+// KAYIT LİSTESİ
+// ============================================================
+
+// Bir kaydın satırını (<li>) üretir.
+//
+// innerHTML KULLANMIYORUZ. Açıklama senin yazdığın metin; içinde "<"
+// gibi bir karakter olsa tarayıcı onu HTML sanıp düzeni bozardı.
+// createElement + textContent ile yazdığımızda metin metin olarak kalıyor.
+function kayitSatiriYap(kayit) {
+  const satir = document.createElement("li");
+  satir.className = "kayit";
+
+  // Sol taraf: açıklama (üstte) + tarih & kategori (altta)
+  const sol = document.createElement("div");
+  sol.className = "kayit-sol";
+
+  const baslik = document.createElement("span");
+  baslik.className = "kayit-aciklama";
+  // Açıklama boş bırakılmışsa tür adını yazıyoruz ki satır boş görünmesin.
+  baslik.textContent = kayit.aciklama || turAdi(kayit.tur);
+  sol.appendChild(baslik);
+
+  const alt = document.createElement("span");
+  alt.className = "kayit-alt";
+  // Giderde kategori daha bilgilendirici; diğerlerinde tür adını yazıyoruz.
+  const etiket = kayit.tur === "gider" ? kayit.kategori : turAdi(kayit.tur);
+  alt.textContent = tarihYaz(kayit.tarih) + " · " + etiket;
+  sol.appendChild(alt);
+
+  satir.appendChild(sol);
+
+  // Sağ taraf: tutar. Gelir +, gider −, yatırım işaretsiz
+  // (yatırım harcanmadı, sadece kenara ayrıldı).
+  const tutar = document.createElement("span");
+  tutar.className = "kayit-tutar tutar-" + kayit.tur;
+  const isaret = kayit.tur === "gelir" ? "+" : kayit.tur === "gider" ? "−" : "";
+  tutar.textContent = isaret + kurusYaz(kayit.kurus);
+  satir.appendChild(tutar);
+
+  // Silme düğmesi. Hangi kaydı sileceğini data-id'de taşıyor.
+  const silDugmesi = document.createElement("button");
+  silDugmesi.type = "button";
+  silDugmesi.className = "sil";
+  silDugmesi.dataset.id = kayit.id;
+  silDugmesi.setAttribute("aria-label", "Kaydı sil");
+  silDugmesi.textContent = "🗑";
+  satir.appendChild(silDugmesi);
+
+  return satir;
+}
+
+function listeyiCiz(kayitlar) {
+  const liste = bul("kayit-listesi");
+  liste.innerHTML = ""; // eski satırları temizle
+  for (const kayit of yeniyeGoreSirala(kayitlar)) {
+    liste.appendChild(kayitSatiriYap(kayit));
+  }
+}
+
+// Silme. Dinleyiciyi her satıra tek tek koymuyoruz; listeye BİR tane
+// koyup tıklamanın hangi satırdan geldiğine bakıyoruz. Buna "olay devri"
+// (event delegation) deniyor. Satırlar her yenilemede baştan üretildiği
+// için bu hem daha az kod hem de daha az iş.
+bul("kayit-listesi").addEventListener("click", (olay) => {
+  // closest: tıklanan yerden yukarı doğru çıkıp ".sil" bulur.
+  // Çöp kutusu simgesine değil de satırın boşluğuna tıklandıysa null döner.
+  const dugme = olay.target.closest(".sil");
+  if (!dugme) return;
+
+  const kayit = kayitlariOku().find((k) => k.id === dugme.dataset.id);
+  if (!kayit) return;
+
+  const etiket = kayit.aciklama || turAdi(kayit.tur);
+  const onay = confirm(
+    `"${etiket}" — ${kurusYaz(kayit.kurus)}\n\nBu kaydı silmek istiyor musun?`
+  );
+  if (!onay) return;
+
+  kayitSil(kayit.id);
+  ozetiYenile();
+  bildir("Kayıt silindi");
+});
 
 // ============================================================
 // EKLEME FORMU

@@ -122,6 +122,24 @@ esit("Aralık +1 -> gelecek yıl Ocak", V.ayEtiketi(V.ayKaydir(2026, 12, 1).yil,
 esit("Ocak -1 -> geçen yıl Aralık", V.ayEtiketi(V.ayKaydir(2026, 1, -1).yil, V.ayKaydir(2026, 1, -1).ay), "2025-12");
 esit("Ağustos -12 -> bir yıl önce", V.ayEtiketi(V.ayKaydir(2026, 8, -12).yil, V.ayKaydir(2026, 8, -12).ay), "2025-08");
 
+baslik("ayniAy — iki ay nesnesi aynı mı?");
+dogru("aynı ay", V.ayniAy({ yil: 2026, ay: 8 }, { yil: 2026, ay: 8 }));
+dogru("farklı ay", V.ayniAy({ yil: 2026, ay: 8 }, { yil: 2026, ay: 9 }) === false);
+dogru("farklı yıl", V.ayniAy({ yil: 2026, ay: 8 }, { yil: 2025, ay: 8 }) === false);
+
+baslik("tarihYaz — liste satırındaki tarih");
+esit('"2026-08-06"', V.tarihYaz("2026-08-06"), "6 Ağustos");
+esit('"2026-01-01"', V.tarihYaz("2026-01-01"), "1 Ocak");
+esit('"2026-12-31"', V.tarihYaz("2026-12-31"), "31 Aralık");
+// Ayın ilk günü, saat dilimi kaymasının en kolay yakalandığı yer:
+// yanlış yapılsaydı "31 Temmuz" çıkardı.
+esit("ayın 1'i geriye kaymıyor", V.tarihYaz("2026-08-01"), "1 Ağustos");
+
+baslik("turAdi — ekranda gösterilen tür adı");
+esit("gelir", V.turAdi("gelir"), "Gelir");
+esit("gider", V.turAdi("gider"), "Gider");
+esit("yatirim", V.turAdi("yatirim"), "Yatırım");
+
 // ============================================================
 // 3) KAYIT EKLEME VE SİLME
 // ============================================================
@@ -260,6 +278,22 @@ esit("toplam varlık", V.kurusYaz(V.toplamVarlik(tum)), "43.000,00 ₺");
 esit("toplam yatırım", V.kurusYaz(V.toplamYatirim(tum)), "10.000,00 ₺");
 esit("turToplami boş dizide", V.turToplami([], "gelir"), 0);
 
+baslik("yeniyeGoreSirala — liste sıralaması");
+// Sırasız bir dizi kuruyoruz; sonuç yeniden eskiye olmalı.
+const sirasiz = [
+  { id: "a", tarih: "2026-08-05", tur: "gelir", kurus: 100 },
+  { id: "b", tarih: "2026-08-20", tur: "gelir", kurus: 100 },
+  { id: "c", tarih: "2026-08-01", tur: "gelir", kurus: 100 },
+  { id: "d", tarih: "2026-08-20", tur: "gelir", kurus: 100 }, // b ile aynı gün, sonra eklendi
+];
+const sirali = V.yeniyeGoreSirala(sirasiz);
+esit("sıra", sirali.map((k) => k.id).join(""), "dbac");
+esit("aynı günde sonra eklenen üstte", sirali[0].id, "d");
+esit("en eski en altta", sirali[3].id, "c");
+// Sıralama gelen diziyi bozmamalı: dışarıdaki kod "ben sıralamadım ki" demesin.
+esit("özgün dizi bozulmadı", sirasiz.map((k) => k.id).join(""), "abcd");
+esit("boş dizi", V.yeniyeGoreSirala([]).length, 0);
+
 baslik("kuruş toplama ondalık hatası üretmiyor");
 depoyuTemizle();
 // 0.1 + 0.2 klasiği: ondalıkla çalışsaydık 0.30000000000000004 çıkardı.
@@ -329,6 +363,23 @@ for (const s of htmlSiniflar) {
 
 baslik("JavaScript'in eklediği sınıflar CSS'te tanımlı mı?");
 for (const s of ["gizli", "aktif", "eksi"]) dogru("." + s, css.includes("." + s));
+
+baslik("app.js'in ÜRETTİĞİ satırların sınıfları CSS'te tanımlı mı?");
+// Liste satırları createElement ile üretiliyor, yani index.html'de yok.
+// Yukarıdaki HTML taraması onları göremez; burada app.js'teki className
+// atamalarını tarıyoruz.
+const uretilenSiniflar = new Set();
+for (const parca of tumEslesmeler(js, /className\s*=\s*"([^"]+)"/g)) {
+  for (const ad of parca.trim().split(/\s+/)) {
+    // "tutar-" gibi yarım isimler: sonuna değişken ekleniyor, aşağıda ayrı bakıyoruz.
+    if (ad.endsWith("-")) continue;
+    uretilenSiniflar.add(ad);
+  }
+}
+for (const s of uretilenSiniflar) dogru("." + s, css.includes("." + s));
+
+// Yarım kalan "tutar-" + tur birleşimlerinin üç hâli de tanımlı olmalı.
+for (const tur of V.TURLER) dogru(".tutar-" + tur, css.includes(".tutar-" + tur));
 
 baslik("id'ler tekil mi?");
 esit(`${htmlIdListesi.length} id`, htmlIdListesi.length, htmlIdler.size);

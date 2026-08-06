@@ -26,8 +26,14 @@
         <span id="varlik-alt" class="varlik-alt"></span>
       </div>
 
-      <!-- Ay okları Adım 5'te bu başlığın yanına gelecek. -->
-      <h2 id="ay-basligi" class="ay-basligi">—</h2>
+      <!-- Ay gezinme çubuğu. aria-label: düğmenin içinde sadece bir ok
+           işareti var, ekran okuyucu "◀" diye okuyamaz — ona ne işe
+           yaradığını bu etiketle söylüyoruz. -->
+      <div class="ay-cubugu">
+        <button type="button" id="ay-geri" class="ay-ok" aria-label="Önceki ay">◀</button>
+        <h2 id="ay-basligi" class="ay-basligi">—</h2>
+        <button type="button" id="ay-ileri" class="ay-ok" aria-label="Sonraki ay">▶</button>
+      </div>
 
       <div class="kartlar">
         <div class="kart kart-gelir-renk">
@@ -48,9 +54,15 @@
         </div>
       </div>
 
+      <!-- Bulunduğumuz aydan uzaklaşınca görünür (app.js yönetiyor). -->
+      <button type="button" id="bugune-don" class="bugune-don gizli">
+        Bu aya dön
+      </button>
+
       <p id="ay-bos" class="ay-bos gizli">Bu ayda henüz kayıt yok.</p>
 
-      <!-- Kayıt listesi Adım 5'te buraya gelecek. -->
+      <!-- Kayıt listesi. Satırlar app.js tarafından üretiliyor. -->
+      <ul id="kayit-listesi" class="kayit-listesi"></ul>
 
     </section>
 

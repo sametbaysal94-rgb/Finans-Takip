@@ -126,6 +126,33 @@ function ayKaydir(yil, ay, adim) {
   return { yil: d.getFullYear(), ay: d.getMonth() + 1 };
 }
 
+// İki ay aynı mı? { yil, ay } nesnelerini doğrudan === ile karşılaştırmak
+// çalışmaz: JavaScript'te iki ayrı nesne, içleri aynı olsa da eşit sayılmaz.
+function ayniAy(a, b) {
+  return a.yil === b.yil && a.ay === b.ay;
+}
+
+const GUN_BICIMI = new Intl.DateTimeFormat("tr-TR", {
+  day: "numeric",
+  month: "long",
+});
+
+// "2026-08-06" -> "6 Ağustos"
+//
+// DİKKAT: new Date("2026-08-06") yazmıyoruz. Tarih metnini bu şekilde
+// vermek Greenwich saatine göre yorumlanır ve Türkiye'de bir gün geriye
+// kayabilir. Sayıları tek tek ayırıp veriyoruz, o zaman yerel saat kullanılır.
+function tarihYaz(tarih) {
+  const [yil, ay, gun] = String(tarih).split("-").map(Number);
+  return GUN_BICIMI.format(new Date(yil, ay - 1, gun));
+}
+
+// Ekranda gösterilecek tür adı: "gelir" -> "Gelir"
+const TUR_ADLARI = { gelir: "Gelir", gider: "Gider", yatirim: "Yatırım" };
+function turAdi(tur) {
+  return TUR_ADLARI[tur] || tur;
+}
+
 // ============================================================
 // DEPO: OKUMA VE YAZMA
 // ============================================================
@@ -284,6 +311,24 @@ function toplamYatirim(kayitlar) {
   return turToplami(kayitlar, "yatirim");
 }
 
+// Kayıtları yeniden eskiye sıralar (liste için).
+//
+// Aynı güne birkaç kayıt girilirse en son girdiğin üstte olsun diye
+// sıra numarasını (i) da hesaba katıyoruz. Sıralama YENİ bir dizi
+// üretiyor; gelen diziyi bozmuyor — dışarıdaki kod "ben sıralamadım ki"
+// diye şaşırmasın.
+function yeniyeGoreSirala(kayitlar) {
+  return kayitlar
+    .map((kayit, i) => ({ kayit, i }))
+    .sort((a, b) => {
+      if (a.kayit.tarih !== b.kayit.tarih) {
+        return a.kayit.tarih < b.kayit.tarih ? 1 : -1; // tarihi büyük olan önce
+      }
+      return b.i - a.i; // aynı gün: sonra eklenen önce
+    })
+    .map((x) => x.kayit);
+}
+
 // ============================================================
 // NODE KÖPRÜSÜ
 // ============================================================
@@ -308,6 +353,9 @@ if (typeof module !== "undefined" && module.exports) {
     ayEtiketi,
     ayAdi,
     ayKaydir,
+    ayniAy,
+    tarihYaz,
+    turAdi,
     kayitlariOku,
     kayitlariYaz,
     kayitEkle,
@@ -317,5 +365,6 @@ if (typeof module !== "undefined" && module.exports) {
     ozetHesapla,
     toplamVarlik,
     toplamYatirim,
+    yeniyeGoreSirala,
   };
 }
