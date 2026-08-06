@@ -463,6 +463,101 @@ if (kullanilmayan.length > 0) {
 }
 
 // ============================================================
+// 6) PWA — kimlik kartı, ikonlar ve çevrimdışı bekçisi
+// ============================================================
+
+baslik("manifest.json geçerli mi?");
+let manifest = null;
+try {
+  manifest = JSON.parse(oku("manifest.json"));
+  gecen++;
+  console.log("  OK    JSON okunabildi");
+} catch (e) {
+  basarisiz++;
+  console.log("  HATA  manifest.json bozuk: " + e.message);
+}
+
+if (manifest) {
+  for (const alan of ["name", "short_name", "start_url", "scope", "display", "icons", "theme_color", "background_color"]) {
+    dogru(`"${alan}" alanı var`, manifest[alan] !== undefined);
+  }
+  esit('display "standalone"', manifest.display, "standalone");
+  esit('lang "tr"', manifest.lang, "tr");
+
+  // GitHub Pages adresi site.github.io/proje-adi/ şeklinde, yani
+  // uygulama kök dizinde DEĞİL. Yollar "/" ile başlarsa yayında kırılır.
+  dogru('start_url göreli ("./" ile başlıyor)', String(manifest.start_url).startsWith("./"));
+  dogru('scope göreli ("./" ile başlıyor)', String(manifest.scope).startsWith("./"));
+
+  baslik("manifest'teki ikon dosyaları gerçekten var mı?");
+  for (const ikon of manifest.icons) {
+    const varMi = fs.existsSync(path.join(__dirname, ikon.src));
+    dogru(`${ikon.src} (${ikon.sizes}, ${ikon.purpose})`, varMi);
+    dogru(`${ikon.src} yolu göreli`, !ikon.src.startsWith("/"));
+  }
+  // Telefonun ikonu daire/kare kırpması için maskable şart, yoksa
+  // ikon kenarlarından kesilir.
+  dogru("maskable ikon var", manifest.icons.some((i) => String(i.purpose).includes("maskable")));
+
+  baslik("theme_color üç yerde de aynı mı?");
+  // Aynı renk manifest'te, index.html'de ve style.css'te yazılı.
+  // Biri değişip diğerleri kalırsa durum çubuğu uygulamayla uyumsuz görünür.
+  const metaRenk = (html.match(/name="theme-color"\s+content="([^"]+)"/) || [])[1];
+  const cssVurgu = (css.match(/--vurgu:\s*(#[0-9a-fA-F]{3,8})/) || [])[1];
+  esit("manifest.json theme_color", String(manifest.theme_color).toLowerCase(), String(metaRenk).toLowerCase());
+  esit("style.css --vurgu", String(cssVurgu).toLowerCase(), String(metaRenk).toLowerCase());
+}
+
+baslik("index.html PWA bağlantıları");
+dogru("manifest.json bağlanmış", /rel="manifest"\s+href="manifest\.json"/.test(html));
+dogru("apple-touch-icon var", html.includes('rel="apple-touch-icon"'));
+dogru("theme-color meta var", html.includes('name="theme-color"'));
+
+baslik("service worker dosya listesi doğru mu?");
+// EN KRİTİK DENETİM: addAll listesindeki tek bir yol yanlışsa
+// service worker HİÇ kurulmaz ve çevrimdışı çalışma sessizce çalışmaz.
+const swKod = oku("service-worker.js");
+const listeMetni = (swKod.match(/const DOSYALAR = \[([\s\S]*?)\]/) || [])[1] || "";
+const swDosyalar = [...listeMetni.matchAll(/"([^"]+)"/g)].map((m) => m[1]);
+
+dogru("DOSYALAR listesi bulundu", swDosyalar.length > 0);
+for (const yol of swDosyalar) {
+  if (yol === "./") {
+    console.log('  ATLA  "./" (kök dizin, dosya değil)');
+    continue;
+  }
+  dogru(yol, fs.existsSync(path.join(__dirname, yol.replace(/^\.\//, ""))));
+}
+
+baslik("önbelleğe alınması gereken hiçbir dosya atlanmamış mı?");
+// Ters yön: projede olup listede olmayan bir dosya varsa o dosya
+// çevrimdışıyken gelmez ve uygulama yarım açılır.
+const ikonlar = fs
+  .readdirSync(path.join(__dirname, "icons"))
+  .filter((d) => d.endsWith(".png"))
+  .map((d) => "icons/" + d);
+const gerekenler = ["style.css", "veri.js", "app.js", "manifest.json", ...ikonlar];
+const listedekiler = new Set(swDosyalar.map((y) => y.replace(/^\.\//, "")));
+for (const d of gerekenler) dogru(d + " listede", listedekiler.has(d));
+
+// index.html'i ayrı beklemiyoruz: "./" zaten onu getiriyor. Ama biri
+// mutlaka listede olmalı, yoksa uygulama çevrimdışı hiç açılmaz.
+dogru('ana sayfa listede ("./" veya index.html)', listedekiler.has("") || listedekiler.has("index.html"));
+// Aynı dosyayı iki adresle saklamak yönlendirme sorunlarına yol açıyor.
+dogru('"./" ve "index.html" ikisi birden yok', !(listedekiler.has("") && listedekiler.has("index.html")));
+
+baslik("service worker kaydı ve önbellek yönetimi");
+dogru("app.js service-worker.js'i kaydediyor", js.includes('register("./service-worker.js")'));
+dogru("kayıt hatası yakalanıyor (file:// çökmesin)", /register\([^)]*\)\s*\.catch/.test(js));
+dogru("önbellek adı sürümlü", /const ONBELLEK = "[^"]*v\d+"/.test(swKod));
+dogru("install olayı var", swKod.includes('addEventListener("install"'));
+dogru("activate olayı var", swKod.includes('addEventListener("activate"'));
+dogru("fetch olayı var", swKod.includes('addEventListener("fetch"'));
+dogru("eski önbellekler siliniyor", swKod.includes("caches.delete"));
+dogru("sadece başarılı yanıtlar önbelleğe giriyor", swKod.includes("yanit.ok"));
+dogru("çevrimdışı yedek olarak önbelleğe düşülüyor", swKod.includes("caches.match"));
+
+// ============================================================
 // SONUÇ
 // ============================================================
 

@@ -299,3 +299,23 @@ bul("alan-tarih").value = bugununTarihi(); // tarih varsayılan olarak bugün
 kategoriKutusunuGuncelle();
 sekmeGoster("ozet");
 ozetiYenile();
+
+// ============================================================
+// SERVICE WORKER — çevrimdışı çalışma
+// ============================================================
+//
+// service-worker.js dosyasını tarayıcıya kaydediyoruz. O dosya
+// arka planda durup uygulamanın internetsiz de açılmasını sağlıyor.
+//
+// Yalnızca https:// veya localhost adreslerinde çalışır. Dosyayı
+// çift tıklayıp (file://) açtığında kaydolmaz; aşağıdaki catch
+// bunu hata olarak göstermeyip sadece konsola not düşüyor.
+if ("serviceWorker" in navigator) {
+  // load olayını bekliyoruz: service worker'ın indirilmesi, sayfanın
+  // ilk açılışıyla yarışıp onu yavaşlatmasın.
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("./service-worker.js").catch((hata) => {
+      console.log("Service worker kaydolmadı (localhost veya https gerekir):", hata.message);
+    });
+  });
+}
