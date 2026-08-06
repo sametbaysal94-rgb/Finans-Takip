@@ -1,81 +1,171 @@
 /* style.css — uygulamanın görünümü.
-   Adım 3: kullanılabilir bir temel. İnce tasarım işi Adım 6'da. */
+   Telefon ekranı için tasarlandı; geniş ekranda ortada durur. */
 
-/* ---------- Genel ---------- */
+/* ============================================================
+   DEĞİŞKENLER
+   ============================================================
+   Renkler ve ölçüler burada TEK yerde duruyor. "--" ile başlayan
+   bunlar CSS değişkeni; aşağıda var(--zemin) diye çağırıyoruz.
+
+   Neden: ana rengi değiştirmek istediğinde bütün dosyayı taramak
+   yerine sadece burayı düzenliyorsun. Bir yeri kaçırma riski yok. */
+
+:root {
+  /* Zemin ve kutular */
+  --zemin: #f4f6f8;
+  --kart: #ffffff;
+  --kenar: #e6eaee;
+  --bastirilmis: #eef1f4;
+
+  /* Yazı renkleri — koyudan soluğa */
+  --yazi: #14181d;
+  --yazi-soluk: #5b636c;
+  --yazi-cok-soluk: #8b929a;
+
+  /* Ana vurgu rengi */
+  --vurgu: #0d9488;
+  --vurgu-koyu: #0b7c72;
+  --vurgu-solgun: #f2fbf9;
+
+  /* Kayıt türlerinin renkleri */
+  --gelir: #16a34a;
+  --gider: #dc2626;
+  --yatirim: #4f46e5;
+
+  /* Üstteki koyu varlık kutusu */
+  --koyu: #14181d;
+  --koyu-yazi: #98a2ad;
+
+  /* Uyarı ve başarı kutuları */
+  --hata-zemin: #fdecec;
+  --hata-kenar: #f3bdbd;
+  --hata-yazi: #a01c1c;
+  --basari-zemin: #e7f7f1;
+  --basari-kenar: #a9dfcb;
+  --basari-yazi: #0b6b4f;
+
+  /* Ölçüler — hepsi tek yerde olduğu için kutular birbirine uyumlu */
+  --yuvarlak: 12px;
+  --yuvarlak-buyuk: 18px;
+  --sayfa-genislik: 480px;
+  --sayfa-bosluk: 16px;
+}
+
+/* ============================================================
+   TEMEL
+   ============================================================ */
 
 * {
-  box-sizing: border-box; /* Genişlik hesabına kenarlık ve iç boşluk da dahil olsun */
+  /* Genişlik hesabına kenarlık ve iç boşluk da dahil olsun.
+     Bu satır olmasa width:100% + padding taşmaya yol açar. */
+  box-sizing: border-box;
+}
+
+html {
+  /* Telefon yatay çevrildiğinde yazıları kendi kafasına göre
+     büyütmesin. */
+  -webkit-text-size-adjust: 100%;
 }
 
 body {
   margin: 0;
-  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
-  background: #f4f6f8;
-  color: #16191d;
-  /* Alt çubuk sayfanın üstüne binmesin diye altta yer bırakıyoruz. */
-  padding-bottom: 76px;
+  /* system-ui: telefonun kendi yazı tipini kullan. İnternetten yazı
+     tipi indirmiyoruz — hem hızlı açılıyor hem çevrimdışı çalışıyor. */
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-size: 15px;
+  line-height: 1.45;
+  background: var(--zemin);
+  color: var(--yazi);
+  /* Dokunulan yere gri bir kutu çizmesin (mobil tarayıcı alışkanlığı). */
+  -webkit-tap-highlight-color: transparent;
+  /* Alt çubuk içeriğin üstüne binmesin. env(): telefonun altındaki
+     çentik/çubuk alanı kadar fazladan boşluk. */
+  padding-bottom: calc(76px + env(safe-area-inset-bottom));
 }
 
-/* Telefon için tasarlıyoruz; geniş ekranda ortada dursun. */
 .ust-bar,
 main {
-  max-width: 480px;
+  max-width: var(--sayfa-genislik);
   margin: 0 auto;
-  padding: 0 16px;
+  padding: 0 var(--sayfa-bosluk);
 }
 
 .ust-bar h1 {
-  font-size: 20px;
+  font-size: 19px;
   font-weight: 700;
-  padding: 20px 0 12px;
+  letter-spacing: -0.2px;
+  padding: 22px 0 14px;
   margin: 0;
 }
 
 /* "gizli" sınıfı olan her şey ekranda görünmez. JavaScript bu sınıfı
-   ekleyip çıkararak sekmeleri ve kategori kutusunu yönetiyor. */
+   ekleyip çıkararak sekmeleri, boş mesajları ve uyarıları yönetiyor. */
 .gizli {
   display: none !important;
 }
 
-/* ---------- Özet: toplam varlık kutusu ---------- */
+/* Klavyeyle (Tab ile) gezen biri nerede olduğunu görsün.
+   :focus-visible sadece klavye kullanımında devreye girer —
+   fareyle tıklayınca çirkin çerçeve çıkmaz. */
+button:focus-visible,
+input:focus-visible,
+select:focus-visible {
+  outline: 2px solid var(--vurgu);
+  outline-offset: 2px;
+}
+
+button {
+  /* iOS düğmelere kendi görünümünü dayatmasın. */
+  -webkit-appearance: none;
+  font-family: inherit;
+}
+
+/* ============================================================
+   ÖZET — toplam varlık kutusu
+   ============================================================ */
 
 .varlik {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  background: #16191d;
-  color: #fff;
-  border-radius: 16px;
-  padding: 18px 20px;
+  gap: 3px;
+  background: var(--koyu);
+  color: var(--kart);
+  border-radius: var(--yuvarlak-buyuk);
+  padding: 20px 22px;
 }
 
 .varlik-etiket {
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
-  color: #9aa3ad;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  color: var(--koyu-yazi);
 }
 
 .varlik-tutar {
-  font-size: 30px;
+  /* clamp(en az, tercih, en fazla): dar telefonda küçülür, geniş
+     ekranda 32px'te durur. Yoksa "12.345.678,90 ₺" satırdan taşar. */
+  font-size: clamp(25px, 8vw, 32px);
   font-weight: 700;
+  letter-spacing: -0.8px;
   /* Rakamlar eşit genişlikte olsun: sayı değişince yazı zıplamıyor. */
   font-variant-numeric: tabular-nums;
-  letter-spacing: -0.5px;
 }
 
 .varlik-alt {
   font-size: 13px;
-  color: #7f8996;
+  color: var(--koyu-yazi);
 }
 
-/* ---------- Özet: ay başlığı ve kartlar ---------- */
+/* ============================================================
+   ÖZET — ay gezinme çubuğu
+   ============================================================ */
 
 .ay-cubugu {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 8px;
-  margin: 22px 0 10px;
+  margin: 24px 0 12px;
 }
 
 .ay-basligi {
@@ -83,42 +173,47 @@ main {
   text-align: center;
   font-size: 15px;
   font-weight: 700;
-  color: #3b434c;
+  color: var(--yazi-soluk);
   margin: 0;
   /* Ay adı bazı tarayıcılarda küçük harfle gelir; baş harfi büyütüyoruz. */
   text-transform: capitalize;
 }
 
 .ay-ok {
-  /* 40x40: parmakla rahat basılacak en küçük ölçü. */
-  width: 40px;
-  height: 40px;
+  /* 42x42: parmakla rahat basılacak ölçü. Erişilebilirlik kılavuzları
+     dokunma alanı için en az 44px öneriyor; kenarlıkla birlikte oradayız. */
+  width: 42px;
+  height: 42px;
   flex-shrink: 0;
-  font-size: 13px;
-  color: #5b636c;
-  background: #fff;
-  border: 1px solid #e4e8ec;
-  border-radius: 10px;
+  font-size: 12px;
+  color: var(--yazi-soluk);
+  background: var(--kart);
+  border: 1px solid var(--kenar);
+  border-radius: var(--yuvarlak);
   cursor: pointer;
+  transition: background 0.12s;
 }
 
 .ay-ok:active {
-  background: #eef1f4;
+  background: var(--bastirilmis);
 }
 
 .bugune-don {
   display: block;
-  margin: 12px auto 0;
+  margin: 14px auto 0;
   font-size: 13px;
-  font-family: inherit;
   font-weight: 600;
-  color: #0d9488;
+  color: var(--vurgu);
   background: none;
   border: none;
-  padding: 6px 10px;
+  padding: 8px 12px;
   cursor: pointer;
   text-decoration: underline;
 }
+
+/* ============================================================
+   ÖZET — kartlar
+   ============================================================ */
 
 .kartlar {
   display: grid;
@@ -129,45 +224,58 @@ main {
 .kart {
   display: flex;
   flex-direction: column;
-  gap: 5px;
-  background: #fff;
-  border: 1px solid #e4e8ec;
-  border-radius: 14px;
+  gap: 4px;
+  background: var(--kart);
+  border: 1px solid var(--kenar);
+  border-radius: var(--yuvarlak);
   padding: 14px;
   /* Sol kenarda ince bir renk şeridi — hangi kart olduğu bir bakışta belli. */
-  border-left: 4px solid #cfd6dd;
+  border-left: 4px solid var(--kenar);
 }
 
 .kart-etiket {
   font-size: 12px;
   font-weight: 600;
-  color: #7a828b;
+  color: var(--yazi-cok-soluk);
 }
 
 .kart-tutar {
-  font-size: 18px;
+  /* Kartlar iki sütun olduğu için alan dar: 360px'lik bir telefonda
+     karta ~130px yazı yeri kalıyor. Büyük tutarlar taşmasın diye
+     yazı boyutu ekran genişliğine göre esniyor. */
+  font-size: clamp(15px, 4.2vw, 18px);
   font-weight: 700;
+  letter-spacing: -0.3px;
   font-variant-numeric: tabular-nums;
+  /* Yine de sığmazsa satır kesilmesin, sıkışsın. */
+  white-space: nowrap;
 }
 
-.kart-gelir-renk { border-left-color: #16a34a; }
-.kart-gider-renk { border-left-color: #dc2626; }
-.kart-yatirim-renk { border-left-color: #4f46e5; }
-.kart-kalan-renk { border-left-color: #0d9488; }
+.kart-gelir-renk { border-left-color: var(--gelir); }
+.kart-gider-renk { border-left-color: var(--gider); }
+.kart-yatirim-renk { border-left-color: var(--yatirim); }
+
+/* "Bu ay kalan" en önemli sayı; hafif bir zeminle öne çıkarıyoruz. */
+.kart-kalan-renk {
+  border-left-color: var(--vurgu);
+  background: var(--vurgu-solgun);
+}
 
 /* Kalan eksiye düştüyse tutar kırmızı olsun. JavaScript bu sınıfı ekliyor. */
 .kart-tutar.eksi {
-  color: #dc2626;
+  color: var(--gider);
 }
 
 .ay-bos {
   text-align: center;
-  color: #8b929a;
+  color: var(--yazi-cok-soluk);
   font-size: 14px;
-  margin: 18px 0 0;
+  margin: 24px 0 0;
 }
 
-/* ---------- Kayıt listesi ---------- */
+/* ============================================================
+   ÖZET — kayıt listesi
+   ============================================================ */
 
 .kayit-listesi {
   /* Listelerin varsayılan madde işaretini ve iç boşluğunu kaldırıyoruz. */
@@ -183,10 +291,10 @@ main {
   display: flex;
   align-items: center;
   gap: 10px;
-  background: #fff;
-  border: 1px solid #e4e8ec;
-  border-radius: 12px;
-  padding: 12px 8px 12px 14px;
+  background: var(--kart);
+  border: 1px solid var(--kenar);
+  border-radius: var(--yuvarlak);
+  padding: 11px 6px 11px 14px;
 }
 
 .kayit-sol {
@@ -194,7 +302,7 @@ main {
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 1px;
   /* min-width: 0 olmadan uzun açıklama satırı taşırır. */
   min-width: 0;
 }
@@ -210,7 +318,7 @@ main {
 
 .kayit-alt {
   font-size: 12px;
-  color: #8b929a;
+  color: var(--yazi-cok-soluk);
 }
 
 .kayit-tutar {
@@ -220,45 +328,64 @@ main {
   white-space: nowrap;
 }
 
-.tutar-gelir { color: #16a34a; }
-.tutar-gider { color: #dc2626; }
-.tutar-yatirim { color: #4f46e5; }
+.tutar-gelir { color: var(--gelir); }
+.tutar-gider { color: var(--gider); }
+.tutar-yatirim { color: var(--yatirim); }
 
 .sil {
-  width: 34px;
-  height: 34px;
+  width: 40px;
+  height: 40px;
   flex-shrink: 0;
   font-size: 15px;
   line-height: 1;
   background: none;
   border: none;
-  border-radius: 8px;
+  border-radius: 10px;
   cursor: pointer;
-  opacity: 0.45;
+  /* Soluk duruyor: silme düğmesi göze batıp yanlışlıkla basılmasın. */
+  opacity: 0.4;
+  transition: opacity 0.12s, background 0.12s;
 }
 
 .sil:active {
-  background: #fdecec;
+  background: var(--hata-zemin);
   opacity: 1;
 }
 
+/* ============================================================
+   BİLDİRİM VE UYARI KUTULARI
+   ============================================================ */
+
 .bildirim {
-  background: #e7f7f1;
-  border: 1px solid #a9dfcb;
-  color: #0b6b4f;
-  border-radius: 12px;
+  background: var(--basari-zemin);
+  border: 1px solid var(--basari-kenar);
+  color: var(--basari-yazi);
+  border-radius: var(--yuvarlak);
   padding: 12px 14px;
   margin: 0 0 12px;
+  font-size: 14px;
   font-weight: 600;
 }
 
-/* ---------- Tür seçimi (Gelir / Gider / Yatırım) ---------- */
+.hata {
+  background: var(--hata-zemin);
+  border: 1px solid var(--hata-kenar);
+  color: var(--hata-yazi);
+  border-radius: var(--yuvarlak);
+  padding: 12px 14px;
+  margin: 0 0 14px;
+  font-size: 14px;
+}
+
+/* ============================================================
+   EKLE — tür seçimi (Gelir / Gider / Yatırım)
+   ============================================================ */
 
 .tur-secim {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 8px;
-  margin-bottom: 18px;
+  margin-bottom: 20px;
 }
 
 .tur-secim label {
@@ -276,29 +403,33 @@ main {
 .tur-secim span {
   display: block;
   text-align: center;
-  padding: 13px 0;
-  background: #fff;
-  border: 1px solid #e4e8ec;
-  border-radius: 11px;
+  padding: 14px 0;
+  background: var(--kart);
+  border: 1px solid var(--kenar);
+  border-radius: var(--yuvarlak);
   font-weight: 600;
   font-size: 15px;
-  transition: background 0.15s, color 0.15s;
+  /* Düğmeye çift dokununca yazı seçilip mavi olmasın. */
+  user-select: none;
+  transition: background 0.14s, color 0.14s, border-color 0.14s;
 }
 
 /* input:checked + span = "işaretli kutunun hemen yanındaki span" */
 .tur-secim input:checked + span {
-  background: #0d9488;
-  border-color: #0d9488;
-  color: #fff;
+  background: var(--vurgu);
+  border-color: var(--vurgu);
+  color: var(--kart);
 }
 
-/* Klavyeyle (Tab ile) gezerken hangisinde olduğun görünsün. */
+/* Radyo kutusu gizli olduğu için odak çerçevesini yazının etrafına çiziyoruz. */
 .tur-secim input:focus-visible + span {
-  outline: 2px solid #0d9488;
+  outline: 2px solid var(--vurgu);
   outline-offset: 2px;
 }
 
-/* ---------- Form alanları ---------- */
+/* ============================================================
+   EKLE — form alanları
+   ============================================================ */
 
 .alan {
   display: block;
@@ -309,7 +440,7 @@ main {
   display: block;
   font-size: 13px;
   font-weight: 600;
-  color: #5b636c;
+  color: var(--yazi-soluk);
   margin-bottom: 6px;
 }
 
@@ -317,51 +448,44 @@ main {
 .alan select {
   width: 100%;
   /* 16px önemli: daha küçük yazı boyutunda iPhone, alana dokununca
-     sayfayı otomatik yakınlaştırıyor. */
+     sayfayı otomatik yakınlaştırıyor ve düzen bozuluyor. */
   font-size: 16px;
   font-family: inherit;
   color: inherit;
   padding: 13px 14px;
-  background: #fff;
-  border: 1px solid #dde2e7;
-  border-radius: 11px;
+  background: var(--kart);
+  border: 1px solid var(--kenar);
+  border-radius: var(--yuvarlak);
 }
 
 .alan input:focus,
 .alan select:focus {
   outline: none;
-  border-color: #0d9488;
+  border-color: var(--vurgu);
   box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.15);
-}
-
-.hata {
-  background: #fdecec;
-  border: 1px solid #f3bdbd;
-  color: #a01c1c;
-  border-radius: 11px;
-  padding: 12px 14px;
-  margin: 0 0 14px;
-  font-size: 14px;
 }
 
 .kaydet {
   width: 100%;
   font-size: 16px;
-  font-family: inherit;
   font-weight: 700;
-  color: #fff;
-  background: #0d9488;
+  color: var(--kart);
+  background: var(--vurgu);
   border: none;
-  border-radius: 12px;
-  padding: 15px;
+  border-radius: var(--yuvarlak);
+  padding: 16px;
+  margin-top: 4px;
   cursor: pointer;
+  transition: background 0.12s;
 }
 
 .kaydet:active {
-  background: #0b7c72;
+  background: var(--vurgu-koyu);
 }
 
-/* ---------- Alt sekme çubuğu ---------- */
+/* ============================================================
+   ALT SEKME ÇUBUĞU
+   ============================================================ */
 
 .alt-bar {
   position: fixed;
@@ -369,25 +493,42 @@ main {
   left: 0;
   right: 0;
   display: flex;
-  background: #fff;
-  border-top: 1px solid #e4e8ec;
-  /* Telefonlarda ekranın en altındaki çentik/çubuk alanı kadar boşluk bırak. */
+  justify-content: center;
+  background: var(--kart);
+  border-top: 1px solid var(--kenar);
+  /* Telefonun en altındaki çentik/çubuk alanı kadar boşluk bırak. */
   padding-bottom: env(safe-area-inset-bottom);
 }
 
 .sekme {
   flex: 1;
+  max-width: calc(var(--sayfa-genislik) / 2);
   font-size: 14px;
-  font-family: inherit;
   font-weight: 600;
-  color: #8b929a;
+  color: var(--yazi-cok-soluk);
   background: none;
   border: none;
-  padding: 16px 0;
+  padding: 17px 0;
   cursor: pointer;
+  user-select: none;
+  transition: color 0.12s;
 }
 
 .sekme.aktif {
-  color: #0d9488;
-  box-shadow: inset 0 2px 0 #0d9488;
+  color: var(--vurgu);
+  /* Üst kenara ince bir çizgi: hangi sekmede olduğun belli olsun.
+     border yerine inset gölge kullandık, yükseklik değişmiyor. */
+  box-shadow: inset 0 2px 0 var(--vurgu);
+}
+
+/* ============================================================
+   HAREKET AZALTMA
+   ============================================================
+   Telefon ayarlarında "hareketi azalt" açıksa (baş dönmesi, migren
+   gibi sebeplerle) geçiş animasyonlarını kapatıyoruz. */
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+  }
 }

@@ -392,6 +392,31 @@ baslik("kategori seçenekleri HTML'e elle yazılmamış mı?");
 // Kategoriler tek kaynaktan (veri.js) gelsin; HTML'de <option> olmamalı.
 dogru("index.html'de <option> yok", !html.includes("<option"));
 
+baslik("renkler tek yerde mi?");
+// Kural: her renk :root bloğunda tanımlanır, aşağıda var(--isim) ile
+// çağrılır. Böylece ana rengi değiştirmek tek satırlık iş oluyor.
+// Bu denetim olmasa zamanla renkler dosyaya dağılır ve bir gün
+// "mavi yaptım ama bir yer hâlâ yeşil" diye uğraşırız.
+const cssYorumsuz = css.replace(/\/\*[\s\S]*?\*\//g, "");
+const cssRootsuz = cssYorumsuz.replace(/:root\s*\{[\s\S]*?\}/, "");
+const kacakRenkler = [...cssRootsuz.matchAll(/#[0-9a-fA-F]{3,8}\b/g)].map((m) => m[0]);
+esit(":root dışında ham renk kodu", kacakRenkler.length, 0);
+if (kacakRenkler.length > 0) console.log("        kaçaklar:", kacakRenkler.join(", "));
+dogru(":root bloğu var", /:root\s*\{/.test(cssYorumsuz));
+
+baslik("CSS'te kullanılmayan sınıf kalmış mı?");
+// Ters yön denetim: CSS'te kural yazdığımız her sınıf gerçekten
+// bir yerde kullanılıyor mu? Ölü kod birikmesini engelliyor.
+const cssSiniflar = new Set([...cssYorumsuz.matchAll(/\.([a-zA-Z][\w-]*)/g)].map((m) => m[1]));
+// JavaScript'te parça parça kurulan sınıflar ("tutar-" + tur) düz
+// arama ile bulunamaz; onları yukarıda ayrıca doğruladık.
+const DINAMIK_SINIFLAR = new Set(V.TURLER.map((t) => "tutar-" + t));
+const kullanilmayanCss = [...cssSiniflar].filter(
+  (s) => !DINAMIK_SINIFLAR.has(s) && !html.includes(s) && !js.includes(s)
+);
+esit("kullanılmayan CSS sınıfı", kullanilmayanCss.length, 0);
+if (kullanilmayanCss.length > 0) console.log("        kullanılmayanlar:", kullanilmayanCss.join(", "));
+
 baslik("app.js'in çağırdığı her fonksiyon gerçekten var mı?");
 //
 // Dosyaları ikiye ayırınca yeni bir hata riski doğdu: veri.js'te bir
