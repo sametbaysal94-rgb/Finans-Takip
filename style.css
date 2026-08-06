@@ -1,0 +1,15 @@
+/* style.css — uygulamanın görünümü.
+   Ayrıntılı tasarım Adım 6'da; şimdilik sadece okunaklı bir temel. */
+
+body {
+  font-family: system-ui, sans-serif;
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 24px 16px;
+  background: #f6f7f9;
+  color: #1a1d21;
+}
+
+h1 {
+  font-size: 22px;
+}
