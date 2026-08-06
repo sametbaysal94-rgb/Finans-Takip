@@ -55,7 +55,10 @@ function ozetiYenile() {
   const kayitlar = kayitlariOku();
 
   // --- Üst kutu: TÜM zamanların toplamı, ay seçiminden bağımsız ---
-  bul("varlik-tutar").textContent = kurusYaz(toplamVarlik(kayitlar));
+  const varlik = toplamVarlik(kayitlar);
+  bul("varlik-tutar").textContent = kurusYaz(varlik);
+  // Varlık eksiye düştüyse rakam kırmızı — kartlardaki "kalan" ile aynı davranış.
+  bul("varlik-tutar").classList.toggle("eksi", varlik < 0);
 
   const yatirimda = toplamYatirim(kayitlar);
   bul("varlik-alt").textContent =
@@ -288,6 +291,63 @@ bul("ekle-formu").addEventListener("submit", (olay) => {
   } catch (hata) {
     hataGoster(hata.message);
   }
+});
+
+// ============================================================
+// YEDEKLEME
+// ============================================================
+
+// Yedeği dosya olarak indirt. Tarayıcıda "dosya kaydet" işleminin
+// standart yolu üç adımlık bir oyun:
+//   1) Metinden bir Blob yap (Blob = bellekte duran dosya taslağı),
+//   2) createObjectURL ile ona geçici bir adres ver,
+//   3) o adrese işaret eden görünmez bir bağlantıya kendi kendine tıklat.
+// download özelliği tarayıcıya "bunu açma, bu adla kaydet" diyor.
+bul("yedek-indir").addEventListener("click", () => {
+  const dosya = new Blob([yedekMetni()], { type: "application/json" });
+  const adres = URL.createObjectURL(dosya);
+  const baglanti = document.createElement("a");
+  baglanti.href = adres;
+  baglanti.download = "finans-yedek-" + bugununTarihi() + ".json";
+  baglanti.click();
+  // Geçici adresi geri veriyoruz; bırakılırsa sekme kapanana dek bellekte kalır.
+  URL.revokeObjectURL(adres);
+  bildir("Yedek indirildi");
+});
+
+// "Geri yükle" düğmesi gizli dosya seçiciye tıklatıyor (bkz. index.html).
+bul("yedek-yukle").addEventListener("click", () => bul("yedek-dosya").click());
+
+bul("yedek-dosya").addEventListener("change", () => {
+  const dosya = bul("yedek-dosya").files[0];
+  if (!dosya) return; // pencereyi açıp vazgeçti
+
+  // text(): dosyanın içeriğini okur. Disk işi olduğu için anında bitmez;
+  // sonucu .then ile bekliyoruz.
+  dosya.text().then((metin) => {
+    try {
+      // Denetim kasada (veri.js/yedekOku). Bozuksa burada durur ve
+      // depodaki veriye el sürülmemiş olur.
+      const kayitlar = yedekOku(metin);
+
+      const eldeki = kayitlariOku().length;
+      const onay = confirm(
+        `Depodaki ${eldeki} kayıt silinip yerine yedekteki ${kayitlar.length} kayıt yüklenecek.\n\nDevam edilsin mi?`
+      );
+      if (!onay) return;
+
+      kayitlariYaz(kayitlar);
+      secilenAy = bugununAyi();
+      ozetiYenile();
+      bildir(kayitlar.length + " kayıt geri yüklendi ✓");
+    } catch (hata) {
+      alert("Yedek yüklenemedi.\n\n" + hata.message);
+    }
+  });
+
+  // Seçimi sıfırla: aynı dosya ikinci kez seçilirse tarayıcı
+  // "değişmedi ki" deyip change olayını atlamasın.
+  bul("yedek-dosya").value = "";
 });
 
 // ============================================================

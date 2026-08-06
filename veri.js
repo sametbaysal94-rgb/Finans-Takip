@@ -54,6 +54,12 @@ function tlToKurus(deger) {
   // virgül ondalık ayırıcıdır, noktaya çevrilir.
   if (metin.includes(",")) {
     metin = metin.replace(/\./g, "").replace(",", ".");
+  } else if (/^\d{1,3}(\.\d{3})+$/.test(metin)) {
+    // Virgül yok ama noktalar binlik KALIBINDA: her noktadan sonra tam
+    // 3 hane var ("1.250", "12.500", "1.250.000"). Türkçe yazımda bu
+    // 1250'dir, 1,25 değil — noktaları atıyoruz. "19.99" bu kalıba
+    // uymaz (son grup 2 hane), ondalık nokta olarak kalır.
+    metin = metin.replace(/\./g, "");
   }
 
   const sayi = Number(metin);
@@ -330,6 +336,68 @@ function yeniyeGoreSirala(kayitlar) {
 }
 
 // ============================================================
+// YEDEKLEME
+// ============================================================
+//
+// Kayıtlar yalnızca bu tarayıcının localStorage'ında duruyor. Tarayıcı
+// verisi silinirse (cihaz değişimi, "site verilerini temizle") hepsi
+// gider. Bu iki fonksiyon sigorta: biri depoyu dosyaya çevirir, öteki
+// dosyadan gelen metni DENETLEYİP geri yükler.
+
+// Deponun tamamını, dosyaya yazılacak metin olarak verir.
+// JSON.stringify'ın 3. parametresi (2): her satıra 2 boşluk girinti —
+// dosyayı bir insan açarsa o da okuyabilsin.
+function yedekMetni() {
+  return JSON.stringify(kayitlariOku(), null, 2);
+}
+
+// Yedek dosyasının metnini alır, denetler ve TEMİZ kayıt listesi döner.
+// Depoya YAZMAZ — "üzerine yazılsın mı?" diye sormak arayüzün işi.
+// Bozuk bir şey varsa throw ile durur; böylece bozuk bir yedek,
+// depodaki sağlam verinin üstüne asla yazılamaz.
+function yedekOku(metin) {
+  let veri;
+  try {
+    veri = JSON.parse(metin);
+  } catch (hata) {
+    throw new Error("Dosya okunamadı: bu bir JSON dosyası değil.");
+  }
+  if (!Array.isArray(veri)) {
+    throw new Error("Bu dosya bir yedeğe benzemiyor: içinde kayıt listesi yok.");
+  }
+
+  return veri.map((k, sira) => {
+    const yer = `Yedekteki ${sira + 1}. kayıt`;
+    if (typeof k !== "object" || k === null) {
+      throw new Error(`${yer} bozuk: bu bir kayıt değil.`);
+    }
+    if (typeof k.id !== "string" || k.id === "") {
+      throw new Error(`${yer} bozuk: kimlik (id) eksik.`);
+    }
+    if (!TURLER.includes(k.tur)) {
+      throw new Error(`${yer} bozuk: tür "${k.tur}" tanınmadı.`);
+    }
+    // Hesapları bozacak her şey sert reddedilir: kuruş pozitif TAM sayı olmalı.
+    if (!Number.isInteger(k.kurus) || k.kurus <= 0) {
+      throw new Error(`${yer} bozuk: tutar (kurus) pozitif tam sayı olmalı.`);
+    }
+    if (typeof k.tarih !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(k.tarih)) {
+      throw new Error(`${yer} bozuk: tarih "${k.tarih}" beklenen biçimde değil.`);
+    }
+    // Açıklama ve kategori süs: eksikse boşla tamamlanır, hesap bozulmaz.
+    // Tanımadığımız fazladan alanları da içeri almıyoruz.
+    return {
+      id: k.id,
+      tur: k.tur,
+      kurus: k.kurus,
+      tarih: k.tarih,
+      aciklama: typeof k.aciklama === "string" ? k.aciklama : "",
+      kategori: typeof k.kategori === "string" ? k.kategori : "",
+    };
+  });
+}
+
+// ============================================================
 // NODE KÖPRÜSÜ
 // ============================================================
 //
@@ -360,6 +428,8 @@ if (typeof module !== "undefined" && module.exports) {
     kayitlariYaz,
     kayitEkle,
     kayitSil,
+    yedekMetni,
+    yedekOku,
     ayKayitlari,
     turToplami,
     ozetHesapla,

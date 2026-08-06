@@ -10,6 +10,7 @@ Telefonun ana ekranına eklenip uygulama gibi kullanılabilir, internetsiz de a�
 - Toplam varlık (tüm zamanlar)
 - Aylar arasında geçmişe gezinme
 - Kayıt silme
+- Yedekleme: kayıtları JSON dosyası olarak indirme ve geri yükleme
 
 ## Nasıl çalıştırılır
 
@@ -59,7 +60,9 @@ gitmiyor, bu depoda hiçbir finansal veri yok.
 
 Bunun sonucu: veriler **cihaza ve adrese özel**. Telefonda girdiklerin
 bilgisayarda görünmez; tarayıcı verisini temizlersen ya da telefon
-değiştirirsen kayıtlar gider. Yedekleme (dışa/içe aktarma) henüz yok.
+değiştirirsen kayıtlar gider. Sigortası Özet ekranındaki **Yedekleme**
+bölümü: kayıtları JSON dosyası olarak indirir, gerekirse geri yükler.
+Arada bir yedek almak kullanıcının sorumluluğunda.
 
 ## Teknik notlar
 

@@ -30,6 +30,7 @@
   /* Kayıt türlerinin renkleri */
   --gelir: #16a34a;
   --gider: #dc2626;
+  --gider-acik: #f87171; /* koyu zemin üstünde okunabilen açık kırmızı */
   --yatirim: #4f46e5;
 
   /* Üstteki koyu varlık kutusu */
@@ -150,6 +151,12 @@ button {
   letter-spacing: -0.8px;
   /* Rakamlar eşit genişlikte olsun: sayı değişince yazı zıplamıyor. */
   font-variant-numeric: tabular-nums;
+}
+
+/* Varlık eksiye düştüyse rakam kırmızı olsun (sınıfı app.js ekliyor).
+   Kartlardaki --gider koyu zeminde kaybolur; açık tonunu kullanıyoruz. */
+.varlik-tutar.eksi {
+  color: var(--gider-acik);
 }
 
 .varlik-alt {
@@ -350,6 +357,53 @@ button {
 .sil:active {
   background: var(--hata-zemin);
   opacity: 1;
+}
+
+/* ============================================================
+   ÖZET — yedekleme
+   ============================================================ */
+
+.yedek {
+  margin-top: 28px;
+  padding: 14px 16px;
+  /* Kesikli çerçeve bilerek: burası günlük akış değil, alet çantası. */
+  border: 1px dashed var(--kenar);
+  border-radius: var(--yuvarlak);
+}
+
+.yedek-baslik {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--yazi-soluk);
+  margin: 0 0 6px;
+}
+
+.yedek-aciklama {
+  font-size: 13px;
+  color: var(--yazi-cok-soluk);
+  margin: 0 0 12px;
+}
+
+.yedek-dugmeler {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.yedek-dugme {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--yazi-soluk);
+  background: var(--kart);
+  border: 1px solid var(--kenar);
+  border-radius: var(--yuvarlak);
+  padding: 12px 0;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+
+.yedek-dugme:active {
+  background: var(--bastirilmis);
 }
 
 /* ============================================================

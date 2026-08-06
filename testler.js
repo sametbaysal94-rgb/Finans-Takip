@@ -87,6 +87,11 @@ esit("1250", V.tlToKurus(1250), 125000);
 esit('"1250,50"', V.tlToKurus("1250,50"), 125050);
 esit('"1.250,50"', V.tlToKurus("1.250,50"), 125050);
 esit('"1250.50"', V.tlToKurus("1250.50"), 125050);
+// Binlik nokta, virgül yok — bir zamanlar 1,25 TL sanılıyordu (bin kat hata!)
+esit('"1.250" (binlik nokta, 125 kuruş DEĞİL)', V.tlToKurus("1.250"), 125000);
+esit('"12.500"', V.tlToKurus("12.500"), 1250000);
+esit('"1.250.000" (milyon, eskiden reddediliyordu)', V.tlToKurus("1.250.000"), 125000000);
+esit('"1.5" (binlik kalıbına uymaz, ondalık kalır)', V.tlToKurus("1.5"), 150);
 esit("19.99 (ondalık hatası olmamalı)", V.tlToKurus(19.99), 1999);
 esit('"  99,9  " (boşluklar)', V.tlToKurus("  99,9  "), 9990);
 esit('"" (boş)', V.tlToKurus(""), NaN);
@@ -306,6 +311,42 @@ for (let i = 0; i < 100; i++) V.kayitEkle({ tur: "gelir", tutar: "19,99", tarih:
 esit("100 x 19,99", V.kurusYaz(V.toplamVarlik(V.kayitlariOku())), "1.999,00 ₺");
 
 // ============================================================
+// 4,5) YEDEKLEME
+// ============================================================
+
+baslik("yedekMetni — depo dosya metnine çevriliyor mu?");
+depoyuTemizle();
+V.kayitEkle({ tur: "gelir", tutar: 1000, tarih: "2026-08-01", aciklama: "Maaş" });
+V.kayitEkle({ tur: "gider", tutar: "250,50", tarih: "2026-08-02", kategori: "Market" });
+const yedek = V.yedekMetni();
+esit("üretilen metin JSON olarak geri okunuyor", JSON.parse(yedek).length, 2);
+dogru("insan da okusun diye girintili", yedek.includes("\n  "));
+
+baslik("yedekOku — sağlam yedek doğru okunuyor mu?");
+depoyuTemizle(); // depo boşken okuyalım ki "yazmıyor" iddiasını sınayabilelim
+const geriGelen = V.yedekOku(yedek);
+esit("kayıt sayısı", geriGelen.length, 2);
+esit("depoya kendiliğinden YAZMADI (yazma kararı arayüzün)", V.kayitlariOku().length, 0);
+esit("kuruş aynen korundu", geriGelen[1].kurus, 25050);
+esit("Türkçe açıklama korundu", geriGelen[0].aciklama, "Maaş");
+esit("kategori korundu", geriGelen[1].kategori, "Market");
+esit(
+  "eksik açıklama boşla tamamlanıyor",
+  V.yedekOku('[{"id":"x","tur":"gelir","kurus":100,"tarih":"2026-01-01"}]')[0].aciklama,
+  ""
+);
+
+baslik("yedekOku — bozuk yedek reddedilmeli (depo korunur)");
+hataAtmali("JSON değil", () => V.yedekOku("bu json degil"));
+hataAtmali("liste değil", () => V.yedekOku('{"a":1}'));
+hataAtmali("kimlik yok", () => V.yedekOku('[{"tur":"gelir","kurus":100,"tarih":"2026-01-01"}]'));
+hataAtmali("geçersiz tür", () => V.yedekOku('[{"id":"x","tur":"hediye","kurus":100,"tarih":"2026-01-01"}]'));
+hataAtmali("kuruş ondalıklı", () => V.yedekOku('[{"id":"x","tur":"gelir","kurus":10.5,"tarih":"2026-01-01"}]'));
+hataAtmali("kuruş eksi", () => V.yedekOku('[{"id":"x","tur":"gelir","kurus":-5,"tarih":"2026-01-01"}]'));
+hataAtmali("kuruş yazı", () => V.yedekOku('[{"id":"x","tur":"gelir","kurus":"100","tarih":"2026-01-01"}]'));
+hataAtmali("tarih bozuk", () => V.yedekOku('[{"id":"x","tur":"gelir","kurus":100,"tarih":"01.01.2026"}]'));
+
+// ============================================================
 // 5) DOSYALAR BİRBİRİYLE UYUMLU MU?
 // ============================================================
 //
@@ -429,7 +470,7 @@ baslik("app.js'in çağırdığı her fonksiyon gerçekten var mı?");
 // Tarayıcının/JavaScript'in hazır sundukları — bunlar zaten var.
 const HAZIR_OLANLAR = new Set([
   "document", "setTimeout", "clearTimeout", "console", "alert", "confirm",
-  "Number", "String", "Boolean", "Object", "Array", "JSON", "Math", "Date", "Intl",
+  "Number", "String", "Boolean", "Object", "Array", "JSON", "Math", "Date", "Intl", "Blob",
   // dil anahtar kelimeleri (parantezle geldikleri için çağrı gibi görünüyorlar)
   "if", "for", "while", "switch", "catch", "function", "return", "typeof", "new",
 ]);

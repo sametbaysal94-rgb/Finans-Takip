@@ -79,6 +79,23 @@
       <!-- Kayıt listesi. Satırlar app.js tarafından üretiliyor. -->
       <ul id="kayit-listesi" class="kayit-listesi"></ul>
 
+      <!-- Yedekleme. Veriler yalnızca bu tarayıcıda durduğu için tek
+           sigorta bu: dosya olarak indir, gerekirse geri yükle. -->
+      <section class="yedek">
+        <h2 class="yedek-baslik">Yedekleme</h2>
+        <p class="yedek-aciklama">
+          Kayıtlar yalnızca bu cihazın tarayıcısında saklanır. Arada bir
+          yedek indir; cihaz değişiminde geri yükle.
+        </p>
+        <div class="yedek-dugmeler">
+          <button type="button" id="yedek-indir" class="yedek-dugme">Yedeği indir</button>
+          <button type="button" id="yedek-yukle" class="yedek-dugme">Yedekten geri yükle</button>
+        </div>
+        <!-- Dosya seçici gizli: tarayıcının kendi düğmesi her cihazda
+             başka görünüyor. Üstteki düğme buna app.js'ten tıklatıyor. -->
+        <input type="file" id="yedek-dosya" accept=".json,application/json" class="gizli">
+      </section>
+
     </section>
 
     <!-- ======================= EKLE SEKMESİ ======================= -->
