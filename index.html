@@ -8,8 +8,83 @@
 </head>
 <body>
 
-  <h1>Finans Takip</h1>
-  <p id="durum">JavaScript henüz çalışmadı.</p>
+  <header class="ust-bar">
+    <h1>Finans Takip</h1>
+  </header>
+
+  <main>
+
+    <!-- ======================= ÖZET SEKMESİ =======================
+         Kartlar ve kayıt listesi Adım 4-5'te buraya gelecek. -->
+    <section id="sayfa-ozet" class="sayfa">
+      <p id="bildirim" class="bildirim gizli"></p>
+      <p id="durum" class="durum">JavaScript henüz çalışmadı.</p>
+    </section>
+
+    <!-- ======================= EKLE SEKMESİ ======================= -->
+    <section id="sayfa-ekle" class="sayfa gizli">
+      <form id="ekle-formu">
+
+        <!-- Tür seçimi. Görünüşte üç düğme, aslında üç radyo kutusu:
+             radyo kutularının aynı name'i olduğu için sadece biri seçili
+             kalabiliyor. Kutuları CSS ile saklayıp yanlarındaki yazıyı
+             düğme gibi boyuyoruz. -->
+        <div class="tur-secim">
+          <label>
+            <input type="radio" name="tur" value="gelir" checked>
+            <span>Gelir</span>
+          </label>
+          <label>
+            <input type="radio" name="tur" value="gider">
+            <span>Gider</span>
+          </label>
+          <label>
+            <input type="radio" name="tur" value="yatirim">
+            <span>Yatırım</span>
+          </label>
+        </div>
+
+        <label class="alan">
+          <span class="etiket">Tutar (₺)</span>
+          <!-- inputmode="decimal": telefonda sayı klavyesi açılır.
+               type="text" bıraktık ki "1250,50" gibi virgüllü yazı da
+               kabul edilsin — çevirmeyi kendi tlToKurus fonksiyonumuz yapıyor. -->
+          <input id="alan-tutar" type="text" inputmode="decimal"
+                 autocomplete="off" placeholder="0,00">
+        </label>
+
+        <label class="alan">
+          <span class="etiket">Tarih</span>
+          <!-- type="date": telefonda takvim açar, değeri 2026-08-06 biçiminde
+               verir — tam bizim sakladığımız biçim. -->
+          <input id="alan-tarih" type="date">
+        </label>
+
+        <!-- Bu kutu sadece "Gider" seçilince görünür (app.js yönetiyor). -->
+        <label class="alan gizli" id="kutu-kategori">
+          <span class="etiket">Kategori</span>
+          <select id="alan-kategori"></select>
+        </label>
+
+        <label class="alan">
+          <span class="etiket">Açıklama</span>
+          <input id="alan-aciklama" type="text" maxlength="60"
+                 autocomplete="off" placeholder="örn. Market alışverişi">
+        </label>
+
+        <p id="form-hata" class="hata gizli"></p>
+
+        <button type="submit" class="kaydet">Kaydet</button>
+      </form>
+    </section>
+
+  </main>
+
+  <!-- Alt çubuk: telefonda başparmağın rahat ulaştığı yer. -->
+  <nav class="alt-bar">
+    <button type="button" class="sekme" data-sekme="ozet">Özet</button>
+    <button type="button" class="sekme" data-sekme="ekle">Ekle</button>
+  </nav>
 
   <script src="app.js"></script>
 </body>

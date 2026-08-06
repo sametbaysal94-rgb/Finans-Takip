@@ -201,14 +201,151 @@ function kayitSil(id) {
 }
 
 // ============================================================
-// GEÇİCİ: veri katmanının çalıştığını ekranda göster
-// (Adım 3'te yerini gerçek arayüz alacak)
+// ARAYÜZ YARDIMCILARI
 // ============================================================
 
-function durumuYaz() {
-  const kayitlar = kayitlariOku();
-  document.getElementById("durum").textContent =
-    `Depoda ${kayitlar.length} kayıt var.`;
+// Kısa yol: her yerde document.getElementById("x") yazmak yerine bul("x").
+function bul(id) {
+  return document.getElementById(id);
 }
 
-durumuYaz();
+// "gizli" sınıfı style.css'te "görünmez ol" demek.
+// Öğeleri silmek yerine bu sınıfı ekleyip çıkararak gösterip saklıyoruz.
+function goster(oge) { oge.classList.remove("gizli"); }
+function gizle(oge) { oge.classList.add("gizli"); }
+
+// ============================================================
+// SEKMELER (Özet / Ekle)
+// ============================================================
+
+function sekmeGoster(ad) {
+  // Önce bütün sayfaları sakla, sonra istenen sayfayı göster.
+  document.querySelectorAll(".sayfa").forEach(gizle);
+  goster(bul("sayfa-" + ad));
+
+  // Alt çubukta hangi düğme vurgulu görünecek.
+  // data-sekme="ozet" yazdığımız yeri JavaScript'te dugme.dataset.sekme diye okuyoruz.
+  document.querySelectorAll(".sekme").forEach((dugme) => {
+    dugme.classList.toggle("aktif", dugme.dataset.sekme === ad);
+  });
+}
+
+// Alt çubuktaki her düğmeye tıklama olayı bağla.
+// addEventListener = "bu olay olursa şu işi yap" demek.
+document.querySelectorAll(".sekme").forEach((dugme) => {
+  dugme.addEventListener("click", () => sekmeGoster(dugme.dataset.sekme));
+});
+
+// ============================================================
+// EKLEME FORMU
+// ============================================================
+
+// Kategori kutusunu yukarıdaki KATEGORILER listesinden doldurur.
+// Elle 8 tane <option> yazmak yerine döngüyle üretiyoruz: yeni kategori
+// gerektiğinde sadece o listeye eklemek yeterli olacak, HTML'e dokunmayacağız.
+function kategorileriDoldur() {
+  const kutu = bul("alan-kategori");
+  kutu.innerHTML = "";
+  for (const ad of KATEGORILER) {
+    const secenek = document.createElement("option");
+    secenek.value = ad;
+    secenek.textContent = ad;
+    kutu.appendChild(secenek);
+  }
+}
+
+// Hangi tür seçili? "gelir" | "gider" | "yatirim"
+// :checked = "işaretli olan" anlamına gelen CSS seçicisi.
+function secilenTur() {
+  return document.querySelector('input[name="tur"]:checked').value;
+}
+
+// Kategori sadece giderde anlamlı, diğerlerinde kutuyu saklıyoruz.
+function kategoriKutusunuGuncelle() {
+  const kutu = bul("kutu-kategori");
+  if (secilenTur() === "gider") goster(kutu);
+  else gizle(kutu);
+}
+
+// Tür değiştiğinde kategori kutusu görünsün/kaybolsun.
+document.querySelectorAll('input[name="tur"]').forEach((dugme) => {
+  dugme.addEventListener("change", kategoriKutusunuGuncelle);
+});
+
+function hataGoster(mesaj) {
+  const p = bul("form-hata");
+  p.textContent = mesaj;
+  goster(p);
+}
+
+function hataGizle() {
+  gizle(bul("form-hata"));
+}
+
+// Kaydettikten sonra Özet ekranında 3 saniyelik bir bilgi göster.
+let bildirimZamanlayici = null;
+function bildir(mesaj) {
+  const p = bul("bildirim");
+  p.textContent = mesaj;
+  goster(p);
+  // Önceki sayacı iptal et: iki kaydı hızlı girersen ilk sayaç
+  // ikinci mesajı erken silmesin.
+  clearTimeout(bildirimZamanlayici);
+  bildirimZamanlayici = setTimeout(() => gizle(p), 3000);
+}
+
+// Kaydettikten sonra formu temizle.
+// Tür ve tarihi bilerek bırakıyoruz: arka arkaya birkaç gider girmek
+// en sık yapılan iş, her seferinde yeniden seçmek yorucu olurdu.
+function formuTemizle() {
+  bul("alan-tutar").value = "";
+  bul("alan-aciklama").value = "";
+  hataGizle();
+}
+
+bul("ekle-formu").addEventListener("submit", (olay) => {
+  // preventDefault: formlar varsayılan olarak sayfayı yeniden yükler
+  // (eski usul: veri sunucuya gider, sayfa baştan gelir). Bizim tek
+  // sayfamız var ve veriyi kendimiz saklıyoruz, o yüzden bunu engelliyoruz.
+  olay.preventDefault();
+  hataGizle();
+
+  try {
+    // Doğrulamayı burada tekrar yazmıyoruz — tek kural yeri kayitEkle.
+    // Bozuk veri varsa o throw ediyor, biz de mesajı aşağıda yakalıyoruz.
+    const kayit = kayitEkle({
+      tur: secilenTur(),
+      tutar: bul("alan-tutar").value,
+      tarih: bul("alan-tarih").value,
+      aciklama: bul("alan-aciklama").value,
+      kategori: bul("alan-kategori").value,
+    });
+
+    formuTemizle();
+    sekmeGoster("ozet");
+    ekraniYenile();
+    bildir(kurusYaz(kayit.kurus) + " kaydedildi ✓");
+  } catch (hata) {
+    hataGoster(hata.message);
+  }
+});
+
+// ============================================================
+// EKRANI YENİLEME
+// (Adım 4'te özet kartları, Adım 5'te kayıt listesi buraya gelecek)
+// ============================================================
+
+function ekraniYenile() {
+  const kayitlar = kayitlariOku();
+  bul("durum").textContent = `Depoda ${kayitlar.length} kayıt var.`;
+}
+
+// ============================================================
+// BAŞLANGIÇ — sayfa açıldığında bir kez çalışan satırlar
+// ============================================================
+
+kategorileriDoldur();
+bul("alan-tarih").value = bugununTarihi(); // tarih varsayılan olarak bugün
+kategoriKutusunuGuncelle();
+sekmeGoster("ozet");
+ekraniYenile();
