@@ -1,0 +1,12 @@
+# Kişisel notlar. Bilgisayarda kalır, GitHub'a gitmez.
+CLAUDE.md
+
+# Windows ve editör artıkları
+Thumbs.db
+desktop.ini
+.DS_Store
+.vscode/
+.idea/
+
+# Node kurulumu yapılırsa
+node_modules/
