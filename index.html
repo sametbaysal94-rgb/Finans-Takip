@@ -14,11 +14,44 @@
 
   <main>
 
-    <!-- ======================= ÖZET SEKMESİ =======================
-         Kartlar ve kayıt listesi Adım 4-5'te buraya gelecek. -->
+    <!-- ======================= ÖZET SEKMESİ ======================= -->
     <section id="sayfa-ozet" class="sayfa">
+
       <p id="bildirim" class="bildirim gizli"></p>
-      <p id="durum" class="durum">JavaScript henüz çalışmadı.</p>
+
+      <!-- Tüm zamanların toplamı. Ay seçiminden bağımsız. -->
+      <div class="varlik">
+        <span class="varlik-etiket">Toplam varlık</span>
+        <strong id="varlik-tutar" class="varlik-tutar">0,00 ₺</strong>
+        <span id="varlik-alt" class="varlik-alt"></span>
+      </div>
+
+      <!-- Ay okları Adım 5'te bu başlığın yanına gelecek. -->
+      <h2 id="ay-basligi" class="ay-basligi">—</h2>
+
+      <div class="kartlar">
+        <div class="kart kart-gelir-renk">
+          <span class="kart-etiket">Gelir</span>
+          <strong id="kart-gelir" class="kart-tutar">0,00 ₺</strong>
+        </div>
+        <div class="kart kart-gider-renk">
+          <span class="kart-etiket">Gider</span>
+          <strong id="kart-gider" class="kart-tutar">0,00 ₺</strong>
+        </div>
+        <div class="kart kart-yatirim-renk">
+          <span class="kart-etiket">Yatırım</span>
+          <strong id="kart-yatirim" class="kart-tutar">0,00 ₺</strong>
+        </div>
+        <div class="kart kart-kalan-renk">
+          <span class="kart-etiket">Bu ay kalan</span>
+          <strong id="kart-kalan" class="kart-tutar">0,00 ₺</strong>
+        </div>
+      </div>
+
+      <p id="ay-bos" class="ay-bos gizli">Bu ayda henüz kayıt yok.</p>
+
+      <!-- Kayıt listesi Adım 5'te buraya gelecek. -->
+
     </section>
 
     <!-- ======================= EKLE SEKMESİ ======================= -->
@@ -86,6 +119,9 @@
     <button type="button" class="sekme" data-sekme="ekle">Ekle</button>
   </nav>
 
+  <!-- SIRA ÖNEMLİ: veri.js önce yüklenmeli, çünkü app.js onun
+       fonksiyonlarını (kayitEkle, ozetHesapla...) kullanıyor. -->
+  <script src="veri.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

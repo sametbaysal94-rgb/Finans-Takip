@@ -37,15 +37,93 @@ main {
   display: none !important;
 }
 
-/* ---------- Özet sekmesi (şimdilik sade) ---------- */
+/* ---------- Özet: toplam varlık kutusu ---------- */
 
-.durum {
+.varlik {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: #16191d;
+  color: #fff;
+  border-radius: 16px;
+  padding: 18px 20px;
+}
+
+.varlik-etiket {
+  font-size: 13px;
+  font-weight: 600;
+  color: #9aa3ad;
+}
+
+.varlik-tutar {
+  font-size: 30px;
+  font-weight: 700;
+  /* Rakamlar eşit genişlikte olsun: sayı değişince yazı zıplamıyor. */
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.5px;
+}
+
+.varlik-alt {
+  font-size: 13px;
+  color: #7f8996;
+}
+
+/* ---------- Özet: ay başlığı ve kartlar ---------- */
+
+.ay-basligi {
+  font-size: 15px;
+  font-weight: 700;
+  color: #5b636c;
+  margin: 22px 0 10px;
+  /* Ay adı küçük harfle gelir ("ağustos 2026"); baş harfi büyütüyoruz. */
+  text-transform: capitalize;
+}
+
+.kartlar {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.kart {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
   background: #fff;
   border: 1px solid #e4e8ec;
   border-radius: 14px;
-  padding: 16px;
-  margin: 0;
-  color: #5b636c;
+  padding: 14px;
+  /* Sol kenarda ince bir renk şeridi — hangi kart olduğu bir bakışta belli. */
+  border-left: 4px solid #cfd6dd;
+}
+
+.kart-etiket {
+  font-size: 12px;
+  font-weight: 600;
+  color: #7a828b;
+}
+
+.kart-tutar {
+  font-size: 18px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.kart-gelir-renk { border-left-color: #16a34a; }
+.kart-gider-renk { border-left-color: #dc2626; }
+.kart-yatirim-renk { border-left-color: #4f46e5; }
+.kart-kalan-renk { border-left-color: #0d9488; }
+
+/* Kalan eksiye düştüyse tutar kırmızı olsun. JavaScript bu sınıfı ekliyor. */
+.kart-tutar.eksi {
+  color: #dc2626;
+}
+
+.ay-bos {
+  text-align: center;
+  color: #8b929a;
+  font-size: 14px;
+  margin: 18px 0 0;
 }
 
 .bildirim {
