@@ -508,6 +508,29 @@ if (manifest) {
   esit("style.css --vurgu", String(cssVurgu).toLowerCase(), String(metaRenk).toLowerCase());
 }
 
+// service-worker.js'in önbellek listesini bir kez ayrıştırıp aşağıdaki
+// birkaç denetimde kullanıyoruz.
+const swKod = oku("service-worker.js");
+const listeMetni = (swKod.match(/const DOSYALAR = \[([\s\S]*?)\]/) || [])[1] || "";
+const swDosyalar = [...listeMetni.matchAll(/"([^"]+)"/g)].map((m) => m[1]);
+
+baslik("yollar göreli mi? (GitHub Pages alt dizinde yayınlıyor)");
+// GitHub Pages siteyi kullanici.github.io/depo-adi/ altında yayınlıyor.
+// href="/style.css" gibi bir yol sitenin KÖKÜNE bakar, yani
+// kullanici.github.io/style.css — orada dosya yok. Yayında her şey
+// kırılır ve yerelde çalıştığı için sebebini bulmak zordur.
+const mutlakYollar = [
+  ...tumEslesmeler(html, /\shref="(\/[^/][^"]*)"/g),
+  ...tumEslesmeler(html, /\ssrc="(\/[^/][^"]*)"/g),
+];
+esit("index.html'de / ile başlayan yol", mutlakYollar.length, 0);
+if (mutlakYollar.length > 0) console.log("        mutlak yollar:", mutlakYollar.join(", "));
+
+const swMutlak = swDosyalar.filter((y) => y.startsWith("/"));
+esit("service worker listesinde / ile başlayan yol", swMutlak.length, 0);
+
+dogru(".nojekyll dosyası var", fs.existsSync(path.join(__dirname, ".nojekyll")));
+
 baslik("index.html PWA bağlantıları");
 dogru("manifest.json bağlanmış", /rel="manifest"\s+href="manifest\.json"/.test(html));
 dogru("apple-touch-icon var", html.includes('rel="apple-touch-icon"'));
@@ -516,10 +539,6 @@ dogru("theme-color meta var", html.includes('name="theme-color"'));
 baslik("service worker dosya listesi doğru mu?");
 // EN KRİTİK DENETİM: addAll listesindeki tek bir yol yanlışsa
 // service worker HİÇ kurulmaz ve çevrimdışı çalışma sessizce çalışmaz.
-const swKod = oku("service-worker.js");
-const listeMetni = (swKod.match(/const DOSYALAR = \[([\s\S]*?)\]/) || [])[1] || "";
-const swDosyalar = [...listeMetni.matchAll(/"([^"]+)"/g)].map((m) => m[1]);
-
 dogru("DOSYALAR listesi bulundu", swDosyalar.length > 0);
 for (const yol of swDosyalar) {
   if (yol === "./") {
