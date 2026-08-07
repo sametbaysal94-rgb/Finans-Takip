@@ -849,6 +849,34 @@ bul("ekle-formu").addEventListener("submit", (olay) => {
 // YEDEKLEME
 // ============================================================
 
+// Kaç gün sonra "yedek almanın zamanı geldi" diye dürtelim?
+//
+// 30 rastgele değil: tarayıcılar yer sıkışınca site verisini SİLEBİLİR
+// ve iOS'ta ana ekrana eklenmemiş bir siteye 7 gün dokunulmazsa verisi
+// kendiliğinden gidiyor. Bunun tek gerçek panzehiri elde bir dosya
+// olması. 7 gün fazla dırdırcı, 90 gün ise "bir ayda üç kayıp"
+// demek — bir ay, hatırlatıcının rahatsız etmeden işe yaradığı yer.
+const YEDEK_HATIRLATMA_GUNU = 30;
+
+// Yedek bölümündeki tek satırlık durum yazısı.
+// Hiç yedek yok / bugün alınmış / N gün önce alınmış.
+function yedekDurumunuGoster() {
+  const satir = bul("yedek-durum");
+  const sonYedek = sonYedekOku();
+
+  // Boş metin = bu cihazda hiç yedek indirilmemiş. En riskli hâl,
+  // o yüzden doğrudan uyarı rengine giriyor.
+  if (!sonYedek) {
+    satir.textContent = "Henüz hiç yedek almadın.";
+    satir.classList.toggle("yedek-eski", true);
+    return;
+  }
+
+  const fark = gunFarki(sonYedek, bugununTarihi());
+  satir.textContent = fark === 0 ? "Son yedek: bugün ✓" : "Son yedek: " + fark + " gün önce";
+  satir.classList.toggle("yedek-eski", fark > YEDEK_HATIRLATMA_GUNU);
+}
+
 // Yedeği dosya olarak indirt. Tarayıcıda "dosya kaydet" işleminin
 // standart yolu üç adımlık bir oyun:
 //   1) Metinden bir Blob yap (Blob = bellekte duran dosya taslağı),
@@ -864,6 +892,13 @@ bul("yedek-indir").addEventListener("click", () => {
   baglanti.click();
   // Geçici adresi geri veriyoruz; bırakılırsa sekme kapanana dek bellekte kalır.
   URL.revokeObjectURL(adres);
+
+  // Damgayı BURADA vuruyoruz, yedekMetni()'nin içinde değil: metni
+  // üretmek ile dosyayı indirmek ayrı işler. Kasa metin üretirken
+  // damga vursaydı, ileride yedeği başka bir amaçla (önizleme gibi)
+  // üreten her yer "yedek alındı" sayılırdı.
+  yedekAlindi();
+  yedekDurumunuGoster();
   bildir("Yedek indirildi");
 });
 
@@ -892,6 +927,10 @@ bul("yedek-dosya").addEventListener("change", () => {
       depoYaz(yedek);
       secilenAy = bugununAyi();
       ozetiYenile();
+      // Geri yükleme damgayı sıfırlıyor (damga dosyada taşınmıyor, bkz.
+      // veri.js/yedekMetni). Satırı hemen tazeliyoruz ki ekranda az
+      // önceki bayat "Son yedek: 3 gün önce" yazısı kalmasın.
+      yedekDurumunuGoster();
       bildir(yedek.kayitlar.length + " kayıt geri yüklendi ✓");
     } catch (hata) {
       alert("Yedek yüklenemedi.\n\n" + hata.message);
@@ -914,6 +953,7 @@ bul("alan-tarih").value = bugununTarihi(); // tarih varsayılan olarak bugün
 kategoriKutusunuGuncelle();
 sekmeGoster("ozet");
 ozetiYenile();
+yedekDurumunuGoster();
 // Panel EN SON çiziliyor: ozetiYenile'den sonra çağırıyoruz ki sıra
 // karışıp da az önce onaylanmış bir kayıt eksik görünmesin.
 tekrarlariGoster();
@@ -935,5 +975,32 @@ if ("serviceWorker" in navigator) {
     navigator.serviceWorker.register("./service-worker.js").catch((hata) => {
       console.log("Service worker kaydolmadı (localhost veya https gerekir):", hata.message);
     });
+  });
+}
+
+// ============================================================
+// KALICI DEPO İSTEĞİ
+// ============================================================
+//
+// Tarayıcı, cihazda yer sıkışınca site verilerini SİLEBİLİR — kimseye
+// sormadan. iOS'ta ayrıca şöyle bir kural var: ana ekrana eklenmemiş
+// bir siteye 7 gün girmezsen verisi kendiliğinden temizlenir.
+//
+// persist() tarayıcıya "benimkini silme" diye NAZİKÇE rica eder.
+// Cevabı garanti değil: tarayıcı uygulamayı ne kadar sahiplendiğine
+// bakıp (ana ekrana eklenmiş mi, sık mı giriliyor) kendi karar verir.
+// İşte bu yüzden yukarıdaki yedek hatırlatıcısı var — asıl sigorta
+// elde duran dosya, bu rica sadece ek bir önlem.
+//
+// Ekranda hiçbir şey göstermiyoruz, izin penceresi de açtırmıyoruz:
+// cevabı ne olursa olsun kullanıcının yapacağı bir şey yok. Sonuç
+// yalnızca konsola not düşülüyor (F12 ile bakılabilir).
+if (navigator.storage && navigator.storage.persist) {
+  navigator.storage.persist().then((verildi) => {
+    console.log(
+      verildi
+        ? "Kalıcı depo izni verildi: tarayıcı verimizi kendiliğinden silmeyecek."
+        : "Kalıcı depo izni verilmedi; yedek almak daha da önemli."
+    );
   });
 }

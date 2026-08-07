@@ -911,6 +911,44 @@ dogru("Aralık -> ara...", V.ayKisaAdi(2026, 12).toLocaleLowerCase("tr").startsW
 dogru("uzun addan kısa", V.ayKisaAdi(2026, 8).length < V.ayAdi(2026, 8).length);
 
 // ============================================================
+// 4,11) DAYANIKLILIK — yedek hatırlatıcısı
+// ============================================================
+//
+// Hatırlatıcının tek işi doğru günü saymak. Yanlış sayarsa ya boş yere
+// dırdır eder ya da asıl gerektiği anda susar; ikisi de sessiz hatadır.
+
+baslik("gunFarki — iki tarih arasındaki gün sayısı");
+esit("aynı gün", V.gunFarki("2026-08-08", "2026-08-08"), 0);
+esit("1 Ağustos -> 31 Ağustos", V.gunFarki("2026-08-01", "2026-08-31"), 30);
+esit("ay sınırı (31 Temmuz -> 1 Ağustos)", V.gunFarki("2026-07-31", "2026-08-01"), 1);
+esit("yıl sınırı (31 Aralık -> 1 Ocak)", V.gunFarki("2025-12-31", "2026-01-01"), 1);
+esit("artık yılda 29 Şubat atlanmıyor", V.gunFarki("2028-02-28", "2028-03-01"), 2);
+esit("sıra tersse eksi çıkar", V.gunFarki("2026-08-31", "2026-08-01"), -30);
+
+baslik("sonYedek — yedek damgası");
+depoyuTemizle();
+esit("hiç yedek alınmamış -> boş metin", V.sonYedekOku(), "");
+esit("bosDepo iskeletinde alan var", V.bosDepo().sonYedek, "");
+const yedekGunu = V.yedekAlindi();
+dogru("dönen tarih biçimi yyyy-aa-gg", /^\d{4}-\d{2}-\d{2}$/.test(yedekGunu));
+esit("bugünü damgaladı", yedekGunu, V.bugununTarihi());
+esit("depodan geri okunuyor", V.sonYedekOku(), yedekGunu);
+// REGRESYON: kayitEkle oku-değiştir-yaz yapmasaydı, bir kayıt eklemek
+// az önce vurulan damgayı sessizce siler ve hatırlatıcı sıfırlanırdı.
+V.kayitEkle({ tur: "gelir", tutar: 10, tarih: "2026-08-01" });
+esit("kayıt eklemek damgayı silmiyor", V.sonYedekOku(), yedekGunu);
+// yedekMetni SAF olmalı: damgayı arayüz, dosya indikten sonra vuruyor.
+const damgaliYedek = V.yedekMetni();
+esit("yedekMetni damgaya dokunmuyor", V.sonYedekOku(), yedekGunu);
+dogru("yedek dosyasında sonYedek YOK (cihaza özel not)", !damgaliYedek.includes("sonYedek"));
+
+baslik("depoyuTasi — sonYedek varsayılanla doluyor (SÜRÜM ARTIŞI YOK)");
+esit("geçerli tarih korunuyor", V.depoyuTasi({ sonYedek: "2026-01-02" }).sonYedek, "2026-01-02");
+esit("sayı gelirse boşlanır", V.depoyuTasi({ sonYedek: 5 }).sonYedek, "");
+esit("bozuk biçim boşlanır", V.depoyuTasi({ sonYedek: "02.01.2026" }).sonYedek, "");
+esit("alan hiç yoksa (eski cihaz) boş", V.depoyuTasi({}).sonYedek, "");
+
+// ============================================================
 // 5) DOSYALAR BİRBİRİYLE UYUMLU MU?
 // ============================================================
 //

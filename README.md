@@ -10,7 +10,16 @@ Telefonun ana ekranına eklenip uygulama gibi kullanılabilir, internetsiz de a�
 - Toplam varlık (tüm zamanlar)
 - Aylar arasında geçmişe gezinme
 - Kayıt silme
+- Aylık bütçe hedefleri: kategori başına limit (Rapor sekmesi), Özet'te
+  dolan ilerleme çubukları
+- Yinelenen işlemler: kira, maaş, abonelik gibi her ay tekrarlayan
+  işlemler. Uygulama bunları kendiliğinden eklemez; zamanı gelince
+  Özet'in üstündeki panelde "onayla / atla" diye sorar
+- Grafikler: ayın gider dağılımı (kategori halkası) ve son 6 ayın
+  gelir-gider karşılaştırması — hazır kütüphane yok, el yapımı SVG
 - Yedekleme: kayıtları JSON dosyası olarak indirme ve geri yükleme
+- Yedek hatırlatıcısı: en son ne zaman yedek alındığını gösterir, bir
+  aydan uzun süre geçmişse uyarı rengine döner
 
 ## Nasıl çalıştırılır
 
@@ -62,7 +71,14 @@ Bunun sonucu: veriler **cihaza ve adrese özel**. Telefonda girdiklerin
 bilgisayarda görünmez; tarayıcı verisini temizlersen ya da telefon
 değiştirirsen kayıtlar gider. Sigortası Özet ekranındaki **Yedekleme**
 bölümü: kayıtları JSON dosyası olarak indirir, gerekirse geri yükler.
-Arada bir yedek almak kullanıcının sorumluluğunda.
+Arada bir yedek almak kullanıcının sorumluluğunda — o yüzden aynı
+bölümde "son yedek: N gün önce" satırı duruyor ve bir ayı geçince
+uyarı rengine dönüyor.
+
+Ek bir önlem olarak uygulama açılışta tarayıcıdan kalıcı depo izni
+(`navigator.storage.persist()`) ister: "cihazda yer daralınca benim
+verimi silme" ricası. Cevabı garanti değildir ve karar tarayıcınındır,
+bu yüzden asıl sigorta hep elde duran yedek dosyasıdır.
 
 ## Teknik notlar
 

@@ -119,6 +119,10 @@
           Kayıtlar yalnızca bu cihazın tarayıcısında saklanır. Arada bir
           yedek indir; cihaz değişiminde geri yükle.
         </p>
+        <!-- "Son yedek: 12 gün önce" gibi tek satırlık hatırlatıcı.
+             app.js dolduruyor; uzun süre yedek alınmadıysa rengi
+             uyarıya döner. -->
+        <p id="yedek-durum" class="yedek-durum"></p>
         <div class="yedek-dugmeler">
           <button type="button" id="yedek-indir" class="yedek-dugme">Yedeği indir</button>
           <button type="button" id="yedek-yukle" class="yedek-dugme">Yedekten geri yükle</button>

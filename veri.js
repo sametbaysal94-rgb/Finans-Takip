@@ -211,6 +211,27 @@ function tarihYaz(tarih) {
   return GUN_BICIMI.format(new Date(yil, ay - 1, gun));
 }
 
+// İki "YYYY-MM-DD" tarihi arasında kaç gün var? (b eksi a)
+//   gunFarki("2026-08-01", "2026-08-31") -> 30
+//   aynı gün                             -> 0
+//   sıra tersse                          -> eksi (-30)
+//
+// DİKKAT: burada da new Date("2026-08-01") YAZMIYORUZ (bkz. tarihYaz).
+// Tarihi metin olarak vermek Greenwich saatine göre yorumlanır, sayı
+// olarak vermek yerel saate göre. İkisini karıştırmak bir günlük sapma
+// demek — hatırlatıcının bir gün erken/geç konuşması buradan gelirdi.
+//
+// Math.round neden şart: bir gün 86.400.000 milisaniye SAYILIR ama yaz
+// saati uygulayan bir ülkede bir gün 23 ya da 25 saat sürebilir. Bölme
+// 29,96 verirse yuvarlama onu 30'a çeker; aşağı kesme (floor) 29 derdi.
+function gunFarki(a, b) {
+  const [y1, a1, g1] = String(a).split("-").map(Number);
+  const [y2, a2, g2] = String(b).split("-").map(Number);
+  const ilk = new Date(y1, a1 - 1, g1);
+  const son = new Date(y2, a2 - 1, g2);
+  return Math.round((son - ilk) / 86400000);
+}
+
 // Ekranda gösterilecek tür adı: "gelir" -> "Gelir"
 const TUR_ADLARI = { gelir: "Gelir", gider: "Gider", yatirim: "Yatırım" };
 function turAdi(tur) {
@@ -231,8 +252,14 @@ function turAdi(tur) {
 // Boş ama İSKELETİ TAM depo. Bütçe ve şablonlar daha eklenmeden de
 // burada tanımlı: böylece ileride alan eklemek "eksikse varsayılanla
 // tamamla" kuralı sayesinde sürüm artışı gerektirmiyor.
+//
+// sonYedek TAM OLARAK BUNUN MEYVESİ: 5. adımda eklenen yepyeni bir alan
+// olmasına rağmen SURUM'a dokunmadık. Eski bir cihazın rafında bu alan
+// yok; depoyuTasi onu boş metinle tamamlıyor ve hiçbir şey kırılmıyor.
+// (sonYedek = en son ne zaman yedek indirildiği, "YYYY-MM-DD"; hiç
+// indirilmediyse boş metin.)
 function bosDepo() {
-  return { surum: SURUM, kayitlar: [], butceler: {}, sablonlar: [] };
+  return { surum: SURUM, kayitlar: [], butceler: {}, sablonlar: [], sonYedek: "" };
 }
 
 // Rafta ne bulursak bulalım, onu bugünün depo biçimine çevirir.
@@ -263,6 +290,13 @@ function depoyuTasi(ham) {
     depo.butceler = ham.butceler;
   }
   if (Array.isArray(ham.sablonlar)) depo.sablonlar = ham.sablonlar;
+  // Yedek damgası: yalnızca doğru biçimdeki bir tarih metnini alıyoruz.
+  // Rafta sayı, null ya da "dün" gibi bir şey bulursak boş metinde
+  // bırakıyoruz — bozuk bir damga, gunFarki'ye NaN yedirip hatırlatıcıyı
+  // sessizce susturacak tek şeydi.
+  if (typeof ham.sonYedek === "string" && /^\d{4}-\d{2}-\d{2}$/.test(ham.sonYedek)) {
+    depo.sonYedek = ham.sonYedek;
+  }
   return depo;
 }
 
@@ -1111,6 +1145,15 @@ function trendCubuklari(trend, yukseklik) {
 // sayesinde ileride yedeğin hangi çağdan geldiğini bilebiliyoruz.
 // JSON.stringify'ın 3. parametresi (2): her satıra 2 boşluk girinti —
 // dosyayı bir insan açarsa o da okuyabilsin.
+//
+// DİKKAT: sonYedek bilerek zarfa GİRMİYOR. O senin VERİN değil, BU
+// CİHAZIN notu ("ben en son ne zaman yedeklendim?"). Dosyaya girseydi,
+// eski bir yedeği yeni bir telefona yüklediğinde o telefon "yedeğim
+// güncel" sanır ve hatırlatıcı susardı.
+//
+// Bu fonksiyon YAN ETKİSİZ: sadece metin üretir, damgaya dokunmaz.
+// Damgayı vurmak yedekAlindi()'nin işi ve onu arayüz, dosya gerçekten
+// indirildikten sonra çağırıyor.
 function yedekMetni() {
   const depo = depoOku();
   return JSON.stringify(
@@ -1124,6 +1167,24 @@ function yedekMetni() {
     null,
     2
   );
+}
+
+// "Yedek indirildi" damgasını bugüne çeker ve o tarihi döner.
+//
+// Oku-değiştir-yaz: deponun tamamını okuyup sadece bu alanı
+// değiştiriyoruz. Doğrudan yeni bir depo yazsaydık kayıtlar, bütçeler
+// ve şablonlar bir yedek indirme yüzünden silinirdi.
+function yedekAlindi() {
+  const depo = depoOku();
+  const bugun = bugununTarihi();
+  depo.sonYedek = bugun;
+  depoYaz(depo);
+  return bugun;
+}
+
+// En son ne zaman yedek indirildi? Hiç indirilmediyse boş metin döner.
+function sonYedekOku() {
+  return depoOku().sonYedek;
 }
 
 // Yedek dosyasının metnini alır, denetler ve TEMİZ bir depo nesnesi
@@ -1204,6 +1265,11 @@ function yedekOku(metin) {
   // onaylarsa bu nesne olduğu gibi depoYaz'a verilebilir.
   // (Eski biçim çıplak listeydi; onda bütçe ve şablon bölümü yok,
   //  boş kalırlar.)
+  //
+  // Not: iskelet bosDepo()'dan geldiği için geri yükleme sonYedek'i
+  // sıfırlar — yani geri yükledikten sonra "henüz yedek almadın" görürsün.
+  // Bilerek böyle bırakıldı: taze yüklenen bu cihazın gerçekten de kendi
+  // yedeği yok, üstelik damga zaten dosyada taşınmıyor.
   const depo = bosDepo();
   depo.kayitlar = kayitlar;
   if (!Array.isArray(veri)) {
@@ -1256,6 +1322,7 @@ if (typeof module !== "undefined" && module.exports) {
     ayinGunSayisi,
     tarihKur,
     tarihYaz,
+    gunFarki,
     turAdi,
     kayitlariOku,
     kayitlariYaz,
@@ -1277,6 +1344,8 @@ if (typeof module !== "undefined" && module.exports) {
     aylikTrend,
     trendCubuklari,
     yedekMetni,
+    yedekAlindi,
+    sonYedekOku,
     yedekOku,
     ayKayitlari,
     turToplami,

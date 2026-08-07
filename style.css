@@ -893,6 +893,21 @@ button {
   margin: 0 0 12px;
 }
 
+/* "Son yedek: 12 gün önce" satırı. Normalde soluk bir not; uzun süredir
+   yedek alınmadıysa (ya da hiç alınmadıysa) app.js .yedek-eski sınıfını
+   ekliyor ve satır bütçe uyarısıyla aynı kehribar renge dönüyor.
+   Yeni renk tanımlamıyoruz: --uyari zaten "dikkat et" demek. */
+.yedek-durum {
+  font-size: 13px;
+  color: var(--yazi-cok-soluk);
+  margin: 0 0 12px;
+}
+
+.yedek-durum.yedek-eski {
+  color: var(--uyari);
+  font-weight: 600;
+}
+
 .yedek-dugmeler {
   display: grid;
   grid-template-columns: 1fr 1fr;
