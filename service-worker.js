@@ -14,7 +14,11 @@
 
 // Önbelleğin adı. Sonundaki sürüm numarasını değiştirdiğimizde
 // tarayıcı eski önbelleği çöpe atıp yenisini kuruyor.
-const ONBELLEK = "finans-takip-v1";
+//
+// DİKKAT: buradaki sürüm DOSYALARIN sürümü. veri.js'teki SURUM ise
+// VERİNİN yapısı. İkisi ayrı ayrı ilerler; sayıları zamanla birbirini
+// tutmayacak ve bu bir hata değil.
+const ONBELLEK = "finans-takip-v2";
 
 // Uygulamanın çalışması için gereken dosyalar.
 //

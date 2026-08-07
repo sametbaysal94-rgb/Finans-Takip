@@ -12,9 +12,20 @@
 // ============================================================
 
 // localStorage'da verimizin durduğu "raf etiketi".
-// Sonuna -v1 koyduk: ileride veri yapısını değiştirmek zorunda kalırsak
-// -v2 diye yeni bir rafa geçip eski veriyi bozmadan taşıyabiliriz.
-const DEPO_ANAHTARI = "finans-kayitlar-v1";
+//
+// 2. etapta -v1 rafından -v2 rafına geçtik: v1'de rafta yalnızca kayıt
+// listesi vardı, v2'de tek bir kök nesne var (kayıtlar + bütçeler +
+// şablonlar bir arada). Eski v1 rafı SİLİNMEZ — o bizim kurtarma
+// kopyamız: taşıma bir gün ters giderse veri orada duruyor.
+const DEPO_ANAHTARI = "finans-veri-v2";
+const ESKI_ANAHTAR = "finans-kayitlar-v1";
+
+// Veri yapısının sürümü. Bu sayı YAPI değişince artar (alan yeniden
+// adlandırma, biçim değiştirme). Yeni alan EKLEMEK sürüm artışı
+// gerektirmez: bosDepo() eksik alanları varsayılanla tamamlıyor.
+// DİKKAT: service-worker.js'teki önbellek sürümüyle (v2, v3...) hiçbir
+// ilgisi yok — o dosya sürümü, bu veri sürümü; ayrı ayrı ilerlerler.
+const SURUM = 2;
 
 // Kayıt türleri. Türkçe karakter YOK (yatirim), çünkü bunlar ekranda
 // gösterilen yazı değil, kodun içinde kullanılan sabit anahtarlar.
@@ -80,6 +91,12 @@ const SAYI_BICIMI = new Intl.NumberFormat("tr-TR", {
 // Kuruşu ekranda gösterilecek yazıya çevirir: 125050 -> "1.250,50 ₺"
 function kurusYaz(kurus) {
   return SAYI_BICIMI.format(kurus / 100) + " ₺";
+}
+
+// Aynısı ama ₺ işaretsiz: 125050 -> "1.250,50"
+// Form alanlarında ve grafik etiketlerinde işaret fazlalık yapıyor.
+function kurusSade(kurus) {
+  return SAYI_BICIMI.format(kurus / 100);
 }
 
 // ============================================================
@@ -160,32 +177,121 @@ function turAdi(tur) {
 }
 
 // ============================================================
-// DEPO: OKUMA VE YAZMA
+// DEPO: OKUMA VE YAZMA (v2 — tek kök nesne)
 // ============================================================
+//
+// Rafta artık tek bir nesne duruyor:
+//   { surum: 2, kayitlar: [...], butceler: {...}, sablonlar: [...] }
+//
+// Neden tek nesne: her parça ayrı rafta dursaydı üç ayrı okuma, üç ayrı
+// bozulma ihtimali ve "bu cihaz hangi sürümde?" sorusuna üç ayrı cevap
+// olurdu. Tek nesne = tek kapı.
 
-// Tüm kayıtları localStorage'dan okur, dizi olarak döner.
-// Hiç kayıt yoksa boş dizi [] döner — böylece çağıran yerin
-// "acaba yok mu" diye kontrol etmesi gerekmez.
-function kayitlariOku() {
+// Boş ama İSKELETİ TAM depo. Bütçe ve şablonlar daha eklenmeden de
+// burada tanımlı: böylece ileride alan eklemek "eksikse varsayılanla
+// tamamla" kuralı sayesinde sürüm artışı gerektirmiyor.
+function bosDepo() {
+  return { surum: SURUM, kayitlar: [], butceler: {}, sablonlar: [] };
+}
+
+// Rafta ne bulursak bulalım, onu bugünün depo biçimine çevirir.
+// SAF bir fonksiyondur: localStorage'a dokunmaz, sadece çevirir.
+//
+// Kurallar:
+//   - düz dizi (eski v1 biçimi)  -> kayıtlar olarak alınır
+//   - tanınan alanlar            -> tipi doğruysa alınır
+//   - eksik alanlar              -> varsayılanla tamamlanır
+//   - tanınmayan alanlar         -> alınmaz (çöp birikmesin)
+//
+// ASLA hata fırlatmaz: buradaki veri kullanıcının TEK kopyası.
+// Bozuk parçayı atarız ama uygulamayı asla çökertmeyiz.
+function depoyuTasi(ham) {
+  const depo = bosDepo();
+
+  // v1 biçimi: rafta çıplak bir kayıt listesi duruyordu.
+  if (Array.isArray(ham)) {
+    depo.kayitlar = ham;
+    return depo;
+  }
+  if (typeof ham !== "object" || ham === null) return depo;
+
+  if (Array.isArray(ham.kayitlar)) depo.kayitlar = ham.kayitlar;
+  // Dizi de bir "object" sayıldığı için ayrıca dizi OLMADIĞINI kontrol
+  // ediyoruz: butceler düz bir nesne olmalı ({Market: 100} gibi).
+  if (typeof ham.butceler === "object" && ham.butceler !== null && !Array.isArray(ham.butceler)) {
+    depo.butceler = ham.butceler;
+  }
+  if (Array.isArray(ham.sablonlar)) depo.sablonlar = ham.sablonlar;
+  return depo;
+}
+
+// Depoyu okur. Sıra önemli:
+//   1) v2 rafı doluysa onu kullan.
+//   2) Değilse eski v1 rafına bak; bulursa v2'ye TAŞI (v1'i silmeden).
+//   3) İkisi de boşsa boş depo dön — ama YAZMADAN. Sadece okumak
+//      depoyu değiştirmemeli (testler bunu açıkça denetliyor).
+function depoOku() {
   const metin = localStorage.getItem(DEPO_ANAHTARI);
-  if (!metin) return [];
+  if (metin) {
+    try {
+      return depoyuTasi(JSON.parse(metin));
+    } catch (hata) {
+      console.error("Depo okunamadı, boş başlıyorum:", hata);
+      return bosDepo();
+    }
+  }
 
-  // localStorage sadece METİN saklar, dizi/nesne saklayamaz.
-  // Bu yüzden yazarken JSON.stringify ile metne, okurken JSON.parse ile
-  // geri nesneye çeviriyoruz.
+  const eskiMetin = localStorage.getItem(ESKI_ANAHTAR);
+  if (eskiMetin) {
+    try {
+      const depo = depoyuTasi(JSON.parse(eskiMetin));
+      // Taşımayı v2 rafına yazıyoruz ama v1 rafına DOKUNMUYORUZ:
+      // eski raf bizim kurtarma kopyamız.
+      try {
+        depoYaz(depo);
+      } catch (hata) {
+        // Yazamadıysak bile (depo dolu?) veriyi bellekte kullanmaya
+        // devam edebiliriz; okuma asla patlamaz.
+        console.error("Taşıma yazılamadı, bellekte devam:", hata);
+      }
+      return depo;
+    } catch (hata) {
+      console.error("Eski depo okunamadı, boş başlıyorum:", hata);
+      return bosDepo();
+    }
+  }
+
+  return bosDepo();
+}
+
+// Depoyu rafa yazar. localStorage dolunca (genelde ~5 MB) veya Safari
+// gizli moddayken setItem hata fırlatır — o kriptik hatayı kullanıcıya
+// anlayacağı bir cümleye çeviriyoruz.
+function depoYaz(depo) {
   try {
-    const veri = JSON.parse(metin);
-    // Beklediğimiz şey bir dizi. Değilse (veri bozulmuşsa) boş dön.
-    return Array.isArray(veri) ? veri : [];
+    localStorage.setItem(DEPO_ANAHTARI, JSON.stringify(depo));
   } catch (hata) {
-    console.error("Kayıtlar okunamadı, boş liste dönüyorum:", hata);
-    return [];
+    throw new Error(
+      "Kaydedilemedi: cihazın deposu dolu ya da tarayıcı gizli modda. Yedeğini indirip yer açmayı dene."
+    );
   }
 }
 
-// Verilen diziyi localStorage'a yazar (eskisinin üzerine).
+// Tüm kayıtları dizi olarak döner. Hiç kayıt yoksa boş dizi [] döner —
+// böylece çağıran yerin "acaba yok mu" diye kontrol etmesi gerekmez.
+function kayitlariOku() {
+  return depoOku().kayitlar;
+}
+
+// Verilen kayıt listesini depoya yazar.
+//
+// DİKKAT: önce depoyu OKUYUP sonra sadece kayıtlar bölümünü değiştiriyoruz
+// (oku-değiştir-yaz). Doğrudan yeni bir depo yazsaydık bütçeler ve
+// şablonlar her kayıt eklemede sessizce silinirdi.
 function kayitlariYaz(kayitlar) {
-  localStorage.setItem(DEPO_ANAHTARI, JSON.stringify(kayitlar));
+  const depo = depoOku();
+  depo.kayitlar = kayitlar;
+  depoYaz(depo);
 }
 
 // ============================================================
@@ -345,16 +451,33 @@ function yeniyeGoreSirala(kayitlar) {
 // dosyadan gelen metni DENETLEYİP geri yükler.
 
 // Deponun tamamını, dosyaya yazılacak metin olarak verir.
+//
+// Dosya bir "zarf": içinde sürüm numarası ve tarih de var. Sürüm
+// sayesinde ileride yedeğin hangi çağdan geldiğini bilebiliyoruz.
 // JSON.stringify'ın 3. parametresi (2): her satıra 2 boşluk girinti —
 // dosyayı bir insan açarsa o da okuyabilsin.
 function yedekMetni() {
-  return JSON.stringify(kayitlariOku(), null, 2);
+  const depo = depoOku();
+  return JSON.stringify(
+    { surum: SURUM, olusturma: bugununTarihi(), kayitlar: depo.kayitlar },
+    null,
+    2
+  );
 }
 
-// Yedek dosyasının metnini alır, denetler ve TEMİZ kayıt listesi döner.
-// Depoya YAZMAZ — "üzerine yazılsın mı?" diye sormak arayüzün işi.
+// Yedek dosyasının metnini alır, denetler ve TEMİZ bir depo nesnesi
+// döner. Depoya YAZMAZ — "üzerine yazılsın mı?" diye sormak arayüzün işi.
 // Bozuk bir şey varsa throw ile durur; böylece bozuk bir yedek,
 // depodaki sağlam verinin üstüne asla yazılamaz.
+//
+// İki biçimi de kabul eder:
+//   - eski (1. etap) yedekler: çıplak kayıt listesi  [...]
+//   - yeni zarf: { surum, olusturma, kayitlar: [...] }
+// Kimsenin eski yedek dosyası çöpe dönmesin.
+//
+// Buradaki "hata fırlatabilir" tavrı, depoOku'nun "asla fırlatmaz"
+// tavrının tam tersi ve bu BİLEREK böyle: dosya yüklemek tekrar
+// denenebilir bir kullanıcı işlemi, ama rafta duran veri tek kopya.
 function yedekOku(metin) {
   let veri;
   try {
@@ -362,11 +485,24 @@ function yedekOku(metin) {
   } catch (hata) {
     throw new Error("Dosya okunamadı: bu bir JSON dosyası değil.");
   }
-  if (!Array.isArray(veri)) {
+
+  let hamListe;
+  if (Array.isArray(veri)) {
+    hamListe = veri; // eski biçim
+  } else if (typeof veri === "object" && veri !== null && Array.isArray(veri.kayitlar)) {
+    // Zarfın sürümü bizden yeniyse kayıt yapısını tanımıyor olabiliriz.
+    // Denemek yerine dürüstçe durup kullanıcıyı güncellemeye yolluyoruz.
+    if (Number.isInteger(veri.surum) && veri.surum > SURUM) {
+      throw new Error(
+        `Bu yedek uygulamanın daha yeni bir sürümünden (${veri.surum}) geliyor. Önce uygulamayı güncelle.`
+      );
+    }
+    hamListe = veri.kayitlar;
+  } else {
     throw new Error("Bu dosya bir yedeğe benzemiyor: içinde kayıt listesi yok.");
   }
 
-  return veri.map((k, sira) => {
+  const kayitlar = hamListe.map((k, sira) => {
     const yer = `Yedekteki ${sira + 1}. kayıt`;
     if (typeof k !== "object" || k === null) {
       throw new Error(`${yer} bozuk: bu bir kayıt değil.`);
@@ -386,6 +522,9 @@ function yedekOku(metin) {
     }
     // Açıklama ve kategori süs: eksikse boşla tamamlanır, hesap bozulmaz.
     // Tanımadığımız fazladan alanları da içeri almıyoruz.
+    //
+    // BU LİSTE KAYIT ŞEMASININ TEK GERÇEĞİ: buraya eklenmeyen yeni bir
+    // alan, yedekten geri yüklemede sessizce kaybolur.
     return {
       id: k.id,
       tur: k.tur,
@@ -395,6 +534,12 @@ function yedekOku(metin) {
       kategori: typeof k.kategori === "string" ? k.kategori : "",
     };
   });
+
+  // Temiz kayıtları tam bir depo iskeletine koyup dönüyoruz: arayüz
+  // onaylarsa bu nesne olduğu gibi depoYaz'a verilebilir.
+  const depo = bosDepo();
+  depo.kayitlar = kayitlar;
+  return depo;
 }
 
 // ============================================================
@@ -412,10 +557,17 @@ function yedekOku(metin) {
 if (typeof module !== "undefined" && module.exports) {
   module.exports = {
     DEPO_ANAHTARI,
+    ESKI_ANAHTAR,
+    SURUM,
     TURLER,
     KATEGORILER,
+    bosDepo,
+    depoyuTasi,
+    depoOku,
+    depoYaz,
     tlToKurus,
     kurusYaz,
+    kurusSade,
     bugununTarihi,
     bugununAyi,
     ayEtiketi,

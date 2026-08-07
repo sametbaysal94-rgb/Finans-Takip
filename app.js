@@ -327,19 +327,20 @@ bul("yedek-dosya").addEventListener("change", () => {
   dosya.text().then((metin) => {
     try {
       // Denetim kasada (veri.js/yedekOku). Bozuksa burada durur ve
-      // depodaki veriye el sürülmemiş olur.
-      const kayitlar = yedekOku(metin);
+      // depodaki veriye el sürülmemiş olur. Dönen şey artık tam bir
+      // depo nesnesi — onay çıkarsa olduğu gibi rafa yazılıyor.
+      const yedek = yedekOku(metin);
 
       const eldeki = kayitlariOku().length;
       const onay = confirm(
-        `Depodaki ${eldeki} kayıt silinip yerine yedekteki ${kayitlar.length} kayıt yüklenecek.\n\nDevam edilsin mi?`
+        `Depodaki ${eldeki} kayıt silinip yerine yedekteki ${yedek.kayitlar.length} kayıt yüklenecek.\n\nDevam edilsin mi?`
       );
       if (!onay) return;
 
-      kayitlariYaz(kayitlar);
+      depoYaz(yedek);
       secilenAy = bugununAyi();
       ozetiYenile();
-      bildir(kayitlar.length + " kayıt geri yüklendi ✓");
+      bildir(yedek.kayitlar.length + " kayıt geri yüklendi ✓");
     } catch (hata) {
       alert("Yedek yüklenemedi.\n\n" + hata.message);
     }

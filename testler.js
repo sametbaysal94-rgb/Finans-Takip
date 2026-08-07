@@ -37,7 +37,11 @@ globalThis.localStorage = {
 const V = require("./veri.js");
 
 function depoyuTemizle() {
+  // İki rafı da boşaltıyoruz: v2 (güncel) ve v1 (kurtarma kopyası).
+  // Sadece v2'yi silseydik, taşıma testlerinden kalan v1 verisi sonraki
+  // testlere sızardı.
   localStorage.removeItem(V.DEPO_ANAHTARI);
+  localStorage.removeItem(V.ESKI_ANAHTAR);
 }
 
 // ============================================================
@@ -192,7 +196,8 @@ esit("kayıt sayısı değişmedi", V.kayitlariOku().length, 4);
 baslik("kalıcılık (sayfa yenilenmiş gibi)");
 const ham = localStorage.getItem(V.DEPO_ANAHTARI);
 esit("depoda metin var", typeof ham, "string");
-esit("metinden geri okunan sayı", JSON.parse(ham).length, 4);
+// Rafta artık kök nesne duruyor; kayıtlar onun .kayitlar bölümünde.
+esit("metinden geri okunan sayı", JSON.parse(ham).kayitlar.length, 4);
 
 baslik("bozuk depo uygulamayı çökertmemeli");
 localStorage.setItem(V.DEPO_ANAHTARI, "{bu gecerli json degil");
@@ -319,20 +324,23 @@ depoyuTemizle();
 V.kayitEkle({ tur: "gelir", tutar: 1000, tarih: "2026-08-01", aciklama: "Maaş" });
 V.kayitEkle({ tur: "gider", tutar: "250,50", tarih: "2026-08-02", kategori: "Market" });
 const yedek = V.yedekMetni();
-esit("üretilen metin JSON olarak geri okunuyor", JSON.parse(yedek).length, 2);
+// Yedek artık bir zarf: { surum, olusturma, kayitlar }.
+esit("üretilen metin JSON olarak geri okunuyor", JSON.parse(yedek).kayitlar.length, 2);
+esit("zarfta sürüm yazıyor", JSON.parse(yedek).surum, V.SURUM);
+dogru("zarfta oluşturma tarihi var", /^\d{4}-\d{2}-\d{2}$/.test(JSON.parse(yedek).olusturma));
 dogru("insan da okusun diye girintili", yedek.includes("\n  "));
 
 baslik("yedekOku — sağlam yedek doğru okunuyor mu?");
 depoyuTemizle(); // depo boşken okuyalım ki "yazmıyor" iddiasını sınayabilelim
 const geriGelen = V.yedekOku(yedek);
-esit("kayıt sayısı", geriGelen.length, 2);
+esit("kayıt sayısı", geriGelen.kayitlar.length, 2);
 esit("depoya kendiliğinden YAZMADI (yazma kararı arayüzün)", V.kayitlariOku().length, 0);
-esit("kuruş aynen korundu", geriGelen[1].kurus, 25050);
-esit("Türkçe açıklama korundu", geriGelen[0].aciklama, "Maaş");
-esit("kategori korundu", geriGelen[1].kategori, "Market");
+esit("kuruş aynen korundu", geriGelen.kayitlar[1].kurus, 25050);
+esit("Türkçe açıklama korundu", geriGelen.kayitlar[0].aciklama, "Maaş");
+esit("kategori korundu", geriGelen.kayitlar[1].kategori, "Market");
 esit(
   "eksik açıklama boşla tamamlanıyor",
-  V.yedekOku('[{"id":"x","tur":"gelir","kurus":100,"tarih":"2026-01-01"}]')[0].aciklama,
+  V.yedekOku('[{"id":"x","tur":"gelir","kurus":100,"tarih":"2026-01-01"}]').kayitlar[0].aciklama,
   ""
 );
 
@@ -345,6 +353,73 @@ hataAtmali("kuruş ondalıklı", () => V.yedekOku('[{"id":"x","tur":"gelir","kur
 hataAtmali("kuruş eksi", () => V.yedekOku('[{"id":"x","tur":"gelir","kurus":-5,"tarih":"2026-01-01"}]'));
 hataAtmali("kuruş yazı", () => V.yedekOku('[{"id":"x","tur":"gelir","kurus":"100","tarih":"2026-01-01"}]'));
 hataAtmali("tarih bozuk", () => V.yedekOku('[{"id":"x","tur":"gelir","kurus":100,"tarih":"01.01.2026"}]'));
+
+baslik("yedekOku — eski biçim kabul, gelecek sürüm ret");
+// Eski (1. etap) yedekler çıplak listeydi. Kimsenin eski dosyası çöp olmasın.
+const eskiYedek = '[{"id":"e1","tur":"gelir","kurus":500,"tarih":"2026-05-01"}]';
+esit("eski biçim okunuyor", V.yedekOku(eskiYedek).kayitlar.length, 1);
+esit("eski biçimde bütçeler boş geliyor", Object.keys(V.yedekOku(eskiYedek).butceler).length, 0);
+hataAtmali("gelecekten gelen yedek (surum 3)", () => V.yedekOku('{"surum":3,"kayitlar":[]}'));
+
+// ============================================================
+// 4,7) DEPO v2 — KÖK NESNE VE TAŞIMA
+// ============================================================
+
+baslik("bosDepo — iskelet tam mı?");
+const iskelet = V.bosDepo();
+esit("surum", iskelet.surum, V.SURUM);
+esit("kayitlar boş dizi", Array.isArray(iskelet.kayitlar) && iskelet.kayitlar.length, 0);
+dogru("butceler boş nesne", typeof iskelet.butceler === "object" && !Array.isArray(iskelet.butceler));
+esit("sablonlar boş dizi", iskelet.sablonlar.length, 0);
+
+baslik("depoyuTasi — rafta ne bulursa bugünün biçimine çevirir");
+const tasinan = V.depoyuTasi([{ id: "t1" }]);
+esit("düz dizi (v1) kayıtlara giriyor", tasinan.kayitlar.length, 1);
+esit("v1'den gelen bütçe boş", Object.keys(tasinan.butceler).length, 0);
+esit("null -> boş depo", V.depoyuTasi(null).kayitlar.length, 0);
+esit("yazı -> boş depo", V.depoyuTasi("çöp").kayitlar.length, 0);
+esit("kayitlar dizi değilse boşlanır", V.depoyuTasi({ kayitlar: "çöp" }).kayitlar.length, 0);
+dogru("tanınmayan alan içeri alınmıyor", !("carpik" in V.depoyuTasi({ carpik: 5 })));
+esit("bilinen bütçe korunuyor", V.depoyuTasi({ butceler: { Market: 100 } }).butceler.Market, 100);
+esit("butceler dizi gelirse reddedilir", Object.keys(V.depoyuTasi({ butceler: [1, 2] }).butceler).length, 0);
+esit("sablonlar korunuyor", V.depoyuTasi({ sablonlar: [{ id: "s" }] }).sablonlar.length, 1);
+
+baslik("v1 rafından v2 rafına taşıma");
+depoyuTemizle();
+const eskiVeri = JSON.stringify([
+  { id: "m1", tur: "gelir", kurus: 1000, tarih: "2026-08-01", aciklama: "", kategori: "" },
+  { id: "m2", tur: "gider", kurus: 500, tarih: "2026-08-02", aciklama: "", kategori: "Market" },
+]);
+localStorage.setItem(V.ESKI_ANAHTAR, eskiVeri);
+esit("eski kayıtlar okunuyor", V.kayitlariOku().length, 2);
+esit("v2 rafı artık dolu", typeof localStorage.getItem(V.DEPO_ANAHTARI), "string");
+esit("v1 rafı SİLİNMEDİ (kurtarma kopyası)", localStorage.getItem(V.ESKI_ANAHTAR), eskiVeri);
+V.kayitEkle({ tur: "gelir", tutar: 10, tarih: "2026-08-03" });
+esit("yeni kayıt v2'ye eklendi", V.kayitlariOku().length, 3);
+esit("v1 rafı hâlâ eski hâlinde (yeniden taşıma yok)", localStorage.getItem(V.ESKI_ANAHTAR), eskiVeri);
+
+baslik("kayitlariYaz bütçe ve şablonları SİLMİYOR (oku-değiştir-yaz)");
+depoyuTemizle();
+const doluDepo = V.bosDepo();
+doluDepo.butceler = { Market: 12345 };
+doluDepo.sablonlar = [{ id: "s1" }];
+V.depoYaz(doluDepo);
+V.kayitEkle({ tur: "gider", tutar: 50, tarih: "2026-08-01", kategori: "Market" });
+esit("kayıt eklendi", V.kayitlariOku().length, 1);
+esit("bütçe hayatta", V.depoOku().butceler.Market, 12345);
+esit("şablon hayatta", V.depoOku().sablonlar.length, 1);
+
+baslik("depoYaz — depo doluyken anlaşılır hata");
+// Node taklidimizin kotası yok; setItem'ı geçici olarak bozup gerçek
+// tarayıcıdaki "depo doldu" durumunu canlandırıyoruz.
+const gercekSetItem = localStorage.setItem;
+localStorage.setItem = () => { throw new Error("QuotaExceededError"); };
+hataAtmali("dolu depoda Türkçe mesaj", () => V.depoYaz(V.bosDepo()));
+localStorage.setItem = gercekSetItem;
+
+baslik("kurusSade — işaretsiz yazım");
+esit("125050", V.kurusSade(125050), "1.250,50");
+esit("0", V.kurusSade(0), "0,00");
 
 // ============================================================
 // 5) DOSYALAR BİRBİRİYLE UYUMLU MU?
