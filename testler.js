@@ -731,6 +731,186 @@ esit(
 );
 
 // ============================================================
+// 4,10) GRAFİKLER
+// ============================================================
+//
+// Grafiklerin doğruluğunu "gözle bakıp beğenmek" ile sınayamayız.
+// O yüzden çizimden ÖNCEKİ sayıları sınıyoruz: dilim kaç birim, çubuk
+// kaç birim yüksek. Ekranda yanlış görünen bir grafiğin sebebi
+// neredeyse her zaman burada yakalanabilecek bir sayıdır.
+
+baslik("HALKA_CEVRESI — yüzdeyi uzunluk yapan numara");
+esit("değer 100", V.HALKA_CEVRESI, 100);
+
+baslik("kategoriDagilimi — ayın gider dağılımı");
+depoyuTemizle();
+V.kayitEkle({ tur: "gider", tutar: 300, tarih: "2026-08-02", kategori: "Market" });
+V.kayitEkle({ tur: "gider", tutar: 200, tarih: "2026-08-05", kategori: "Market" });
+V.kayitEkle({ tur: "gider", tutar: 1000, tarih: "2026-08-07", kategori: "Kira" });
+V.kayitEkle({ tur: "gider", tutar: 250, tarih: "2026-08-09", kategori: "Fatura" });
+V.kayitEkle({ tur: "gelir", tutar: 9999, tarih: "2026-08-10" }); // gelir hesaba girmemeli
+V.kayitEkle({ tur: "yatirim", tutar: 8888, tarih: "2026-08-11" }); // yatırım da girmemeli
+V.kayitEkle({ tur: "gider", tutar: 7777, tarih: "2026-07-10", kategori: "Market" }); // başka ay
+const dagilim = V.kategoriDagilimi(V.kayitlariOku(), 2026, 8);
+// Ağustos gideri: Kira 1.000 + Market 500 + Fatura 250 = 1.750 TL
+esit("harcama yapılan kategori sayısı", dagilim.length, 3);
+esit("en büyük en üstte (Kira)", dagilim[0].kategori, "Kira");
+esit("ikinci (Market)", dagilim[1].kategori, "Market");
+esit("üçüncü (Fatura)", dagilim[2].kategori, "Fatura");
+esit("Kira kuruşu", dagilim[0].kurus, 100000);
+esit("Market iki kaydı toplandı", dagilim[1].kurus, 50000);
+esit("Fatura kuruşu", dagilim[2].kurus, 25000);
+esit("gelir ve yatırım toplama girmedi", dagilim[0].kurus + dagilim[1].kurus + dagilim[2].kurus, 175000);
+// sira = KATEGORILER'deki yer + 1 → renk sınıfı (.dilim-N) buradan geliyor
+esit("Kira sırası", dagilim[0].sira, V.KATEGORILER.indexOf("Kira") + 1);
+esit("Market sırası (listenin 1.'si)", dagilim[1].sira, 1);
+esit("Fatura sırası (listenin 2.'si)", dagilim[2].sira, 2);
+dogru("sıra, sıralamadaki yerden BAĞIMSIZ", dagilim[0].sira !== 1);
+esit("Kira yüzdesi (tam sayı)", dagilim[0].yuzde, 57);
+esit("Market yüzdesi", dagilim[1].yuzde, 29);
+esit("Fatura yüzdesi", dagilim[2].yuzde, 14);
+esit("harcaması olmayan kategori listede yok", V.KATEGORILER.length - dagilim.length, 5);
+esit("kayıt olmayan ay boş", V.kategoriDagilimi(V.kayitlariOku(), 2026, 9).length, 0);
+esit("boş kayıt listesi", V.kategoriDagilimi([], 2026, 8).length, 0);
+esit(
+  "sadece gelir olan ay boş",
+  V.kategoriDagilimi([{ tur: "gelir", kurus: 5000, tarih: "2026-08-01", kategori: "" }], 2026, 8).length,
+  0
+);
+esit(
+  "artık tanınmayan kategori atlanıyor",
+  V.kategoriDagilimi([{ tur: "gider", kurus: 5000, tarih: "2026-08-01", kategori: "Tatil" }], 2026, 8).length,
+  0
+);
+
+baslik("kategoriDagilimi — eşitlikte sıra hep aynı (kararlılık)");
+// İki kategori tıpatıp aynı tutarda: hangisi önce gelecek? Cevabı
+// tarayıcıya bırakmıyoruz, KATEGORILER sırasına bağlıyoruz.
+const esitPaylar = V.kategoriDagilimi(
+  [
+    { tur: "gider", kurus: 5000, tarih: "2026-08-01", kategori: "Eğlence" },
+    { tur: "gider", kurus: 5000, tarih: "2026-08-01", kategori: "Market" },
+  ],
+  2026,
+  8
+);
+esit("iki dilim", esitPaylar.length, 2);
+esit("önce Market (KATEGORILER'de daha önce)", esitPaylar[0].kategori, "Market");
+esit("sonra Eğlence", esitPaylar[1].kategori, "Eğlence");
+esit("ikisi de %50", esitPaylar[0].yuzde, 50);
+
+baslik("halkaDilimleri — iki eşit dilim");
+const ikiDilim = V.halkaDilimleri([
+  { kategori: "Market", sira: 1, kurus: 5000 },
+  { kategori: "Kira", sira: 4, kurus: 5000 },
+]);
+esit("1. dilim uzunluğu", ikiDilim[0].uzunluk, 50);
+esit("1. dilim kayması", ikiDilim[0].kayma, 0);
+esit("2. dilim uzunluğu", ikiDilim[1].uzunluk, 50);
+esit("2. dilim kayması (eksi = geriye kaydır)", ikiDilim[1].kayma, -50);
+esit("kategori taşınıyor", ikiDilim[1].kategori, "Kira");
+esit("sıra (renk) taşınıyor", ikiDilim[1].sira, 4);
+
+baslik("halkaDilimleri — tek dilim ve boş girdi");
+const tekDilim = V.halkaDilimleri([{ kategori: "Market", sira: 1, kurus: 1234 }]);
+esit("tek dilim halkanın tamamı", tekDilim[0].uzunluk, 100);
+// DİKKAT: JavaScript'te -0 diye ayrı bir sayı var ve Object.is(-0, 0)
+// YANLIŞ döner. Bu satır tam olarak onu yakalıyor.
+esit("kayma tam sıfır (eksi sıfır değil)", tekDilim[0].kayma, 0);
+esit("boş girdi -> boş liste", V.halkaDilimleri([]).length, 0);
+esit("liste değilse boş", V.halkaDilimleri(null).length, 0);
+esit("toplamı sıfır olan girdi -> boş", V.halkaDilimleri([{ kategori: "a", sira: 1, kurus: 0 }]).length, 0);
+
+baslik("halkaDilimleri — üç eşit dilim (DİKİŞ testi)");
+const ucEsit = V.halkaDilimleri([
+  { kategori: "a", sira: 1, kurus: 100 },
+  { kategori: "b", sira: 2, kurus: 100 },
+  { kategori: "c", sira: 3, kurus: 100 },
+]);
+esit("1. uzunluk", ucEsit[0].uzunluk, 33.33);
+esit("3. uzunluk", ucEsit[2].uzunluk, 33.33);
+esit("1. kayma", ucEsit[0].kayma, 0);
+esit("2. kayma", ucEsit[1].kayma, -33.33);
+// Can alıcı satır: kümülatifi YUVARLANMIŞ uzunluklardan toplasaydık
+// 33,33 + 33,33 = 66,66 çıkardı; son dilim erken başlar, halkada ince
+// bir dikiş görünürdü. Ham orandan hesapladığımız için 66,67.
+esit("3. kayma (ham orandan)", ucEsit[2].kayma, -66.67);
+dogru(
+  "son dilim halkayı kapatıyor (±0,01)",
+  Math.abs(ucEsit[2].uzunluk + Math.abs(ucEsit[2].kayma) - 100) <= 0.01
+);
+
+baslik("aylikTrend — son N ay, eskiden yeniye");
+depoyuTemizle();
+V.kayitEkle({ tur: "gelir", tutar: 1000, tarih: "2026-08-01" });
+V.kayitEkle({ tur: "gider", tutar: 400, tarih: "2026-08-02", kategori: "Market" });
+V.kayitEkle({ tur: "gelir", tutar: 500, tarih: "2026-06-01" });
+const trend = V.aylikTrend(V.kayitlariOku(), 2026, 8, 6);
+esit("6 satır", trend.length, 6);
+esit("ilk satır en eski ay", V.ayEtiketi(trend[0].yil, trend[0].ay), "2026-03");
+esit("son satır seçilen ay", V.ayEtiketi(trend[5].yil, trend[5].ay), "2026-08");
+esit("seçilen ayın geliri", trend[5].gelir, 100000);
+esit("seçilen ayın gideri", trend[5].gider, 40000);
+esit("Haziran geliri", trend[3].gelir, 50000);
+esit("boş ay listeden düşmüyor (gelir)", trend[4].gelir, 0);
+esit("boş ay listeden düşmüyor (gider)", trend[4].gider, 0);
+dogru("etiket boş değil", trend[0].etiket.length > 0);
+esit("adet 0 verilirse boş", V.aylikTrend(V.kayitlariOku(), 2026, 8, 0).length, 0);
+
+baslik("aylikTrend — yıl devri");
+const devir = V.aylikTrend([], 2027, 1, 6);
+esit("2027 Ocak'tan 6 ay geriye ilk satır", V.ayEtiketi(devir[0].yil, devir[0].ay), "2026-08");
+esit("son satır", V.ayEtiketi(devir[5].yil, devir[5].ay), "2027-01");
+esit("kayıt yokken hepsi sıfır", devir.reduce((t, a) => t + a.gelir + a.gider, 0), 0);
+
+baslik("trendCubuklari — çubuk yükseklikleri");
+const cubuklar = V.trendCubuklari(
+  [
+    { etiket: "Oca", gelir: 100000, gider: 50000 },
+    { etiket: "Şub", gelir: 0, gider: 0 },
+    { etiket: "Mar", gelir: 25000, gider: 100000 },
+  ],
+  100
+);
+esit("en büyük değer tam boy", cubuklar[0].gelirYuksek, 100);
+esit("yarısı yarım boy", cubuklar[0].giderYuksek, 50);
+esit("boş ay sıfır", cubuklar[1].gelirYuksek, 0);
+esit("çeyrek", cubuklar[2].gelirYuksek, 25);
+// Ölçek gelir ve giderin ORTAK maksimumundan: ayrı ölçeklenseydi
+// 1.000 TL'lik gider, 50.000 TL'lik gelirle aynı boyda görünürdü.
+esit("gider de en büyükse tam boy", cubuklar[2].giderYuksek, 100);
+esit("etiket taşınıyor", cubuklar[2].etiket, "Mar");
+dogru(
+  "yükseklikler tam sayı",
+  cubuklar.every((c) => Number.isInteger(c.gelirYuksek) && Number.isInteger(c.giderYuksek))
+);
+
+baslik("trendCubuklari — hepsi sıfırken NaN üretmiyor");
+const sifirlar = V.trendCubuklari(
+  [
+    { etiket: "Oca", gelir: 0, gider: 0 },
+    { etiket: "Şub", gelir: 0, gider: 0 },
+  ],
+  100
+);
+esit("1. gelir yüksekliği", sifirlar[0].gelirYuksek, 0);
+esit("1. gider yüksekliği", sifirlar[0].giderYuksek, 0);
+dogru(
+  "hiçbiri NaN değil (sıfıra bölme yakalandı)",
+  sifirlar.every((c) => Number.isFinite(c.gelirYuksek) && Number.isFinite(c.giderYuksek))
+);
+esit("boş trend -> boş çubuk", V.trendCubuklari([], 100).length, 0);
+
+baslik("ayKisaAdi — çubukların altındaki kısa ay adı");
+console.log("        [bilgi] ayKisaAdi(2026, 8) =", JSON.stringify(V.ayKisaAdi(2026, 8)));
+// Eşitlik ARAMIYORUZ: dil veritabanı sürümüne göre "Ağu" da gelebilir
+// "Ağu." da. Testin Node sürümüne takılıp kırmızıya dönmesini istemiyoruz.
+dogru("Ağustos -> ağu...", V.ayKisaAdi(2026, 8).toLocaleLowerCase("tr").startsWith("ağu"));
+dogru("Ocak -> oca...", V.ayKisaAdi(2026, 1).toLocaleLowerCase("tr").startsWith("oca"));
+dogru("Aralık -> ara...", V.ayKisaAdi(2026, 12).toLocaleLowerCase("tr").startsWith("ara"));
+dogru("uzun addan kısa", V.ayKisaAdi(2026, 8).length < V.ayAdi(2026, 8).length);
+
+// ============================================================
 // 5) DOSYALAR BİRBİRİYLE UYUMLU MU?
 // ============================================================
 //
@@ -794,7 +974,13 @@ baslik("app.js'in ÜRETTİĞİ satırların sınıfları CSS'te tanımlı mı?")
 // Yukarıdaki HTML taraması onları göremez; burada app.js'teki className
 // atamalarını tarıyoruz.
 const uretilenSiniflar = new Set();
-for (const parca of tumEslesmeler(js, /className\s*=\s*"([^"]+)"/g)) {
+for (const parca of [
+  ...tumEslesmeler(js, /className\s*=\s*"([^"]+)"/g),
+  // SVG öğelerinde className ATANMAZ (orada salt okunur bir nesnedir),
+  // sınıf setAttribute ile veriliyor. Bu kalıbı da taramasaydık grafiğin
+  // sınıfları güvenlik ağının dışında kalırdı.
+  ...tumEslesmeler(js, /setAttribute\("class",\s*"([^"]+)"/g),
+]) {
   for (const ad of parca.trim().split(/\s+/)) {
     // "tutar-" gibi yarım isimler: sonuna değişken ekleniyor, aşağıda ayrı bakıyoruz.
     if (ad.endsWith("-")) continue;
@@ -808,6 +994,14 @@ for (const tur of V.TURLER) dogru(".tutar-" + tur, css.includes(".tutar-" + tur)
 
 // Aynı oyun bütçe çubuğunda: "butce-" + durum birleşiminin üç hâli.
 for (const durum of V.BUTCE_DURUMLARI) dogru(".butce-" + durum, css.includes(".butce-" + durum));
+
+// Halka dilimlerinin renkleri: "dilim-" + sıra. Her kategorinin bir
+// rengi olmak ZORUNDA — biri eksik kalsa o dilim boyasız (siyah) çıkar
+// ve hangi kategori olduğu anlaşılmaz. Kategori eklenirse bu döngü
+// hemen uyarır.
+for (let i = 1; i <= V.KATEGORILER.length; i++) {
+  dogru(".dilim-" + i, css.includes(".dilim-" + i));
+}
 
 baslik("id'ler tekil mi?");
 esit(`${htmlIdListesi.length} id`, htmlIdListesi.length, htmlIdler.size);
@@ -842,6 +1036,7 @@ const cssSiniflar = new Set([...cssYorumsuz.matchAll(/\.([a-zA-Z][\w-]*)/g)].map
 const DINAMIK_SINIFLAR = new Set([
   ...V.TURLER.map((t) => "tutar-" + t),
   ...V.BUTCE_DURUMLARI.map((d) => "butce-" + d),
+  ...V.KATEGORILER.map((_, i) => "dilim-" + (i + 1)),
 ]);
 const kullanilmayanCss = [...cssSiniflar].filter(
   (s) => !DINAMIK_SINIFLAR.has(s) && !html.includes(s) && !js.includes(s)

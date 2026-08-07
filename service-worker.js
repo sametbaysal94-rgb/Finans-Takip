@@ -18,7 +18,7 @@
 // DİKKAT: buradaki sürüm DOSYALARIN sürümü. veri.js'teki SURUM ise
 // VERİNİN yapısı. İkisi ayrı ayrı ilerler; sayıları zamanla birbirini
 // tutmayacak ve bu bir hata değil.
-const ONBELLEK = "finans-takip-v4";
+const ONBELLEK = "finans-takip-v5";
 
 // Uygulamanın çalışması için gereken dosyalar.
 //

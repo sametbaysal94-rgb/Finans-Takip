@@ -37,6 +37,21 @@
      İyi durum --vurgu, aşılma --gider kullanıyor; yeni renk sadece bu. */
   --uyari: #d97706;
 
+  /* Halka grafiğin dilim renkleri. Sıra veri.js'teki KATEGORILER
+     listesine KİLİTLİ: --kategori-1 = Market, --kategori-2 = Fatura...
+     Bir kategori bu ay birinci, gelecek ay dördüncü olabilir; rengini
+     sıralamadan değil listedeki sabit yerinden aldığı için ay değişince
+     bütün grafik yeniden boyanmış gibi olmuyor.
+     Tonlar birbirinden ayrışsın diye seçildi (yan yana iki mavi yok). */
+  --kategori-1: #0ea5e9;
+  --kategori-2: #f59e0b;
+  --kategori-3: #8b5cf6;
+  --kategori-4: #ef4444;
+  --kategori-5: #10b981;
+  --kategori-6: #ec4899;
+  --kategori-7: #64748b;
+  --kategori-8: #a16207;
+
   /* Üstteki koyu varlık kutusu */
   --koyu: #14181d;
   --koyu-yazi: #98a2ad;
@@ -699,6 +714,158 @@ button {
   font-size: 13px;
   color: var(--yazi-cok-soluk);
   margin: 0;
+}
+
+/* ============================================================
+   RAPOR — GRAFİKLER
+   ============================================================ */
+
+/* Grafiklerin hangi ayı gösterdiğini yazan satır. Ay okları Özet
+   sekmesinde olduğu için burada bir "durum satırı" gerekiyor. */
+.rapor-ay {
+  font-size: 13px;
+  color: var(--yazi-cok-soluk);
+  text-align: center;
+  margin: 10px 0 0;
+}
+
+/* Ay adı bazı tarayıcılarda küçük harfle geliyor. Yalnızca İLK harfi
+   büyütüyoruz; text-transform: capitalize olsaydı "Görünümü" de
+   büyürdü ve cümle başlık gibi görünürdü. */
+.rapor-ay::first-letter {
+  text-transform: uppercase;
+}
+
+.grafik-kutu {
+  background: var(--kart);
+  border: 1px solid var(--kenar);
+  border-radius: var(--yuvarlak);
+  padding: 14px;
+  margin-top: 16px;
+}
+
+.grafik-baslik {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--yazi-soluk);
+  margin: 0 0 12px;
+}
+
+.grafik-bos {
+  font-size: 13px;
+  color: var(--yazi-cok-soluk);
+  text-align: center;
+  margin: 0;
+}
+
+/* Halka: telefonda ekranın tamamını kaplamasın diye 220px'te duruyor,
+   ortalanıyor. Yüksekliği vermiyoruz — viewBox kare olduğu için
+   tarayıcı kendisi hesaplıyor. */
+.halka-grafik {
+  display: block;
+  width: 100%;
+  max-width: 220px;
+  margin: 0 auto 14px;
+}
+
+.halka-liste {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.halka-satir {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.halka-nokta {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.halka-ad {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.halka-tutar {
+  color: var(--yazi-soluk);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* TEK SINIF AİLESİ, İKİ İŞ: aynı .dilim-N sınıfı hem SVG çemberinin
+   çizgi rengini (stroke) hem lejant noktasının zeminini (background)
+   veriyor. İki ayrı aile yazsaydık (biri halka, biri nokta) bir gün
+   biri güncellenir öteki unutulur, halkadaki renkle listedeki renk
+   birbirini tutmazdı — grafikte olabilecek en kafa karıştırıcı hata.
+   stroke SVG'de görmezden gelinir, background HTML'de; her öğe kendine
+   ait olanı alıyor, ötekini yok sayıyor. */
+.dilim-1 { stroke: var(--kategori-1); background: var(--kategori-1); }
+.dilim-2 { stroke: var(--kategori-2); background: var(--kategori-2); }
+.dilim-3 { stroke: var(--kategori-3); background: var(--kategori-3); }
+.dilim-4 { stroke: var(--kategori-4); background: var(--kategori-4); }
+.dilim-5 { stroke: var(--kategori-5); background: var(--kategori-5); }
+.dilim-6 { stroke: var(--kategori-6); background: var(--kategori-6); }
+.dilim-7 { stroke: var(--kategori-7); background: var(--kategori-7); }
+.dilim-8 { stroke: var(--kategori-8); background: var(--kategori-8); }
+
+/* Çubuk grafiğin küçük lejantı. Renkli kareler ::before ile
+   üretiliyor — HTML'e boş <span>'lar koymaya gerek kalmıyor. */
+.grafik-anahtar {
+  display: flex;
+  gap: 14px;
+  font-size: 12px;
+  color: var(--yazi-soluk);
+  margin: 0 0 10px;
+}
+
+.anahtar-gelir::before,
+.anahtar-gider::before {
+  content: "";
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  margin-right: 5px;
+}
+
+.anahtar-gelir::before { background: var(--gelir); }
+.anahtar-gider::before { background: var(--gider); }
+
+.trend-grafik {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+/* DİKKAT: SVG'de bir şeklin rengi "color" ya da "background" değil,
+   FILL (dolgu) ve STROKE (çizgi). Kayıt listesindeki alışkanlıkla
+   "color" yazsaydık hiçbir şey olmazdı. */
+.cubuk-gelir { fill: var(--gelir); }
+.cubuk-gider { fill: var(--gider); }
+
+.cubuk-etiket {
+  font-size: 9px;
+  fill: var(--yazi-cok-soluk);
+  /* text-anchor: yazının hangi noktasının verilen x olduğu.
+     "middle" = ortası; böylece etiket çubuk grubunun ortasına oturuyor. */
+  text-anchor: middle;
+}
+
+.eksen {
+  stroke: var(--kenar);
 }
 
 /* ============================================================

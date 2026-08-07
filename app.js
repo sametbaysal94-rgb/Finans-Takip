@@ -93,6 +93,12 @@ function ozetiYenile() {
   else gizle(bul("ay-bos"));
 
   listeyiCiz(ayinKayitlari);
+
+  // --- Rapor sekmesindeki grafikler ---
+  // Buradan çağırmak ayrı bir tazeleme yolu açmaktan iyi: ay okları,
+  // kayıt ekleme, silme, yedekten dönme... hepsi zaten ozetiYenile'ye
+  // uğruyor, dolayısıyla grafikler hiçbir yerde bayat kalmıyor.
+  raporuYenile(kayitlar);
 }
 
 // ============================================================
@@ -514,6 +520,210 @@ bul("sablon-listesi").addEventListener("click", (olay) => {
   tekrarlariGoster();
   bildir("Yinelenen işlem silindi");
 });
+
+// ============================================================
+// GRAFİKLER (Rapor)
+// ============================================================
+//
+// Grafikleri elle çiziyoruz — hazır kütüphane yok. Çizim dili SVG:
+// grafiğin her parçası (daire, dikdörtgen, yazı) sayfadaki bir düğme
+// gibi tarayıcının tanıdığı bir ETİKET. Rengini CSS veriyor,
+// geometrisini veri.js hesaplıyor; buradaki işimiz sadece
+// "hangi etiket, nereye" demek.
+//
+// Hangi ayı çizdiğimiz Özet'teki seçime bağlı: raporuYenile()
+// ozetiYenile()'nin sonundan çağrılıyor, yani ay okları grafikleri de
+// bedavaya sürüyor. Ayrı bir "grafiği tazele" düğmesi gerekmiyor.
+
+// SVG'nin "ad alanı" (namespace) adresi. HTML ile SVG ayrı iki dil;
+// tarayıcı bir etiketin hangi dile ait olduğunu bu adresten anlıyor.
+// Adres gerçek bir siteye gitmiyor, sadece bir kimlik metni.
+const SVG_AD_ALANI = "http://www.w3.org/2000/svg";
+
+// SVG öğesi üretir.
+//
+// DİKKAT — KLASİK TUZAK: document.createElement("circle") HATA VERMEZ.
+// Sessizce "circle" adında, hiçbir anlamı olmayan bir HTML öğesi üretir;
+// SVG'nin içine koyarsın, ekranda hiçbir şey görünmez, konsolda tek bir
+// uyarı bile çıkmaz. Saatlerce "acaba yarıçapı mı yanlış" diye
+// aranırsın. SVG öğeleri ad alanı verilerek, createElementNS ile
+// üretilmek ZORUNDA.
+function svgOge(ad) {
+  return document.createElementNS(SVG_AD_ALANI, ad);
+}
+
+// --- Halka grafik (gider dağılımı) ---
+
+// Halkanın yarıçapı. Çevre = 2 x pi x yarıçap olduğuna göre, çevrenin
+// tam 100 olmasını istiyorsak yarıçap 100 / (2 x pi) ≈ 15,9155 olmalı.
+// Neden 100: veri.js'in verdiği dilim uzunlukları doğrudan yüzde oluyor,
+// aşağıda hiçbir çevirme yapmadan olduğu gibi yazabiliyoruz.
+const HALKA_YARICAP = HALKA_CEVRESI / (2 * Math.PI);
+
+// Halkanın merkezi ve kalınlığı — HTML'deki viewBox 40x40 olduğu için
+// merkez 20,20. Kalınlık 7 birim: hem halka gibi duruyor hem ortada
+// nefes alacak boşluk kalıyor.
+const HALKA_MERKEZ = 20;
+const HALKA_KALINLIK = 7;
+
+// Tek bir dilimi (yani kesik çizgili bir çemberi) üretir.
+function halkaDilimiYap(dilim) {
+  const daire = svgOge("circle");
+  daire.setAttribute("cx", String(HALKA_MERKEZ));
+  daire.setAttribute("cy", String(HALKA_MERKEZ));
+  daire.setAttribute("r", String(HALKA_YARICAP));
+  // fill="none": çemberin İÇİ boyanmasın, sadece çizgisi görünsün.
+  daire.setAttribute("fill", "none");
+  daire.setAttribute("stroke-width", String(HALKA_KALINLIK));
+  // stroke-dasharray = "şu kadar çiz, şu kadar boş bırak". Çevre 100
+  // olduğu için "25 75" demek "çemberin dörtte biri" demek.
+  daire.setAttribute("stroke-dasharray", dilim.uzunluk + " " + (HALKA_CEVRESI - dilim.uzunluk));
+  // stroke-dashoffset = deseni kaydır. Her dilim, kendinden öncekilerin
+  // toplamı kadar geriye kayıyor; böylece uç uca ekleniyorlar.
+  daire.setAttribute("stroke-dashoffset", String(dilim.kayma));
+  // RENK YOK: sınıfı veriyoruz, rengi style.css'teki .dilim-N seçiyor.
+  //
+  // DİKKAT: SVG öğelerinde "oge.className = ..." ÇALIŞMAZ. Orada
+  // className salt okunur özel bir nesnedir; atama sessizce yutulur.
+  // setAttribute ile yazmak her yerde çalışan yol.
+  daire.setAttribute("class", "dilim-" + dilim.sira);
+  return daire;
+}
+
+// Lejantın (renk açıklama listesi) tek satırı: nokta + kategori + tutar.
+// Grafiğin okunabilir olması buna bağlı — SVG ekran okuyucuya kapalı,
+// bilgi bu listeden geliyor.
+function halkaSatiriYap(pay) {
+  const satir = document.createElement("li");
+  satir.className = "halka-satir";
+
+  const nokta = document.createElement("span");
+  // Aynı .dilim-N sınıfı: halkada çizgi rengi, burada zemin rengi oluyor.
+  nokta.className = "halka-nokta dilim-" + pay.sira;
+  satir.appendChild(nokta);
+
+  const ad = document.createElement("span");
+  ad.className = "halka-ad";
+  ad.textContent = pay.kategori;
+  satir.appendChild(ad);
+
+  const tutar = document.createElement("span");
+  tutar.className = "halka-tutar";
+  tutar.textContent = kurusSade(pay.kurus) + " ₺ · %" + pay.yuzde;
+  satir.appendChild(tutar);
+
+  return satir;
+}
+
+function halkayiCiz(kayitlar) {
+  const kutu = bul("halka-dilimler");
+  const liste = bul("halka-liste");
+  kutu.innerHTML = "";
+  liste.innerHTML = "";
+
+  const dagilim = kategoriDagilimi(kayitlar, secilenAy.yil, secilenAy.ay);
+
+  // Gider yoksa boş bir çember çizmenin anlamı yok: grafiği tümden
+  // saklayıp tek satırlık açıklamayı gösteriyoruz.
+  if (dagilim.length === 0) {
+    gizle(bul("halka-grafik"));
+    goster(bul("halka-bos"));
+    return;
+  }
+
+  gizle(bul("halka-bos"));
+  goster(bul("halka-grafik"));
+
+  for (const dilim of halkaDilimleri(dagilim)) kutu.appendChild(halkaDilimiYap(dilim));
+  for (const pay of dagilim) liste.appendChild(halkaSatiriYap(pay));
+}
+
+// --- Trend grafiği (son 6 ayın geliri ve gideri) ---
+//
+// Bütün ölçüler index.html'deki viewBox'a göre: 300 birim genişlik,
+// 140 birim yükseklik. Kâğıt değişirse buradaki sayılar da değişmeli.
+
+const TREND_AY_SAYISI = 6;
+// Bir ayın yatay şeridi. 6 x 50 = 300, yani viewBox'ın tam genişliği.
+const TREND_SERIT = 50;
+// En yüksek çubuk kaç birim olacak (taban çizgisinden yukarı).
+const TREND_YUKSEKLIK = 100;
+// Taban çizgisinin yüksekliği: çubuklar buradan yukarı doğru büyüyor.
+const TREND_TABAN = 120;
+// Ay adlarının yazıldığı satır — taban çizgisinin biraz altı.
+const TREND_ETIKET_Y = 134;
+const CUBUK_GENISLIK = 14;
+const CUBUK_ARASI = 4;
+// İkili çubuk grubunu şeridin ortasına yaslamak için soldan boşluk.
+const CUBUK_SOL = (TREND_SERIT - (CUBUK_GENISLIK * 2 + CUBUK_ARASI)) / 2;
+
+// Tek bir çubuk (dikdörtgen).
+//
+// DİKKAT — TERS DÜNYA: SVG'de y AŞAĞI doğru artar, yani 0 en üst nokta.
+// Bu yüzden çubuğun üst kenarı "taban - yükseklik" oluyor; okulda
+// öğrendiğimiz grafik mantığının tersi.
+function trendCubuguYap(x, yuksek, sinif) {
+  const kutu = svgOge("rect");
+  kutu.setAttribute("x", String(x));
+  kutu.setAttribute("y", String(TREND_TABAN - yuksek));
+  kutu.setAttribute("width", String(CUBUK_GENISLIK));
+  kutu.setAttribute("height", String(yuksek));
+  kutu.setAttribute("class", sinif);
+  return kutu;
+}
+
+function trendiCiz(kayitlar) {
+  const grafik = bul("trend-grafik");
+  grafik.innerHTML = "";
+
+  const trend = aylikTrend(kayitlar, secilenAy.yil, secilenAy.ay, TREND_AY_SAYISI);
+
+  // Altı ayın hepsi boşsa çizecek bir şey yok — sıfır çizgisinden
+  // ibaret bir grafik kullanıcıya "bozuk mu?" dedirtirdi.
+  if (trend.every((a) => a.gelir === 0 && a.gider === 0)) {
+    gizle(grafik);
+    goster(bul("trend-bos"));
+    return;
+  }
+
+  gizle(bul("trend-bos"));
+  goster(grafik);
+
+  // Taban çizgisi. Çubuklar havada durmasın, oturacakları bir zemin olsun.
+  const eksen = svgOge("line");
+  eksen.setAttribute("x1", "0");
+  eksen.setAttribute("y1", String(TREND_TABAN));
+  eksen.setAttribute("x2", String(TREND_AY_SAYISI * TREND_SERIT));
+  eksen.setAttribute("y2", String(TREND_TABAN));
+  eksen.setAttribute("class", "eksen");
+  grafik.appendChild(eksen);
+
+  const cubuklar = trendCubuklari(trend, TREND_YUKSEKLIK);
+  for (let i = 0; i < cubuklar.length; i++) {
+    const sol = i * TREND_SERIT + CUBUK_SOL;
+    grafik.appendChild(trendCubuguYap(sol, cubuklar[i].gelirYuksek, "cubuk-gelir"));
+    grafik.appendChild(
+      trendCubuguYap(sol + CUBUK_GENISLIK + CUBUK_ARASI, cubuklar[i].giderYuksek, "cubuk-gider")
+    );
+
+    // Ay adı. Renk tek kanal olmasın diye her grubun altında YAZIYOR.
+    const etiket = svgOge("text");
+    etiket.setAttribute("x", String(i * TREND_SERIT + TREND_SERIT / 2));
+    etiket.setAttribute("y", String(TREND_ETIKET_Y));
+    etiket.setAttribute("class", "cubuk-etiket");
+    etiket.textContent = cubuklar[i].etiket;
+    grafik.appendChild(etiket);
+  }
+}
+
+// Rapor sekmesinin grafik bölümünü baştan çizer.
+// Kayıt listesini parametreyle alıyoruz: ozetiYenile zaten okumuştu,
+// aynı depoyu bir daha okumanın anlamı yok.
+function raporuYenile(kayitlar) {
+  bul("rapor-ay").textContent = ayAdi(secilenAy.yil, secilenAy.ay) + " görünümü";
+  halkayiCiz(kayitlar);
+  trendiCiz(kayitlar);
+}
 
 // ============================================================
 // EKLEME FORMU

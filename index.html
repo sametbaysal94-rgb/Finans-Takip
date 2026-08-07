@@ -199,6 +199,11 @@
     <!-- ======================= RAPOR SEKMESİ ======================= -->
     <section id="sayfa-rapor" class="sayfa gizli">
 
+      <!-- Grafikler hangi ayı gösteriyor? Ay okları Özet sekmesinde
+           duruyor; bu satır olmasaydı Rapor'a geçen biri geçmiş bir aya
+           bakarken "grafik takılmış" sanardı. app.js dolduruyor. -->
+      <p id="rapor-ay" class="rapor-ay"></p>
+
       <!-- Aylık bütçe limitleri. Satırlar app.js tarafından
            KATEGORILER listesinden üretiliyor (HTML'e elle yazılmıyor —
            kategori listesi tek kaynaktan gelsin). -->
@@ -226,6 +231,51 @@
           Henüz yinelenen işlem yok. Ekle formundaki "Her ay tekrarlansın"
           kutusuyla oluşturabilirsin.
         </p>
+      </section>
+
+      <!-- ---------------- GRAFİK 1: gider dağılımı (halka) ----------------
+
+           SVG = "çizim dili". Fotoğraf gibi noktalardan değil, şekil
+           tariflerinden oluşur; her parçası HTML etiketi gibi durur ve
+           CSS ile boyanabilir. Büyütünce bozulmaz.
+
+           viewBox="0 0 40 40": "çizim kâğıdım 40 birime 40 birim" demek.
+           Kâğıt ekranda kaç piksel olursa olsun içerideki sayılar hep
+           aynı kalıyor — grafiği ölçeklendirme derdi bitiyor.
+
+           aria-hidden="true": ekran okuyucu bu resmi atlasın. Bilgi
+           kaybolmuyor, hemen altındaki lejant listesi aynı bilgiyi YAZI
+           olarak veriyor. Renk hiçbir zaman tek kanal değil — renk
+           körlüğü olan biri de sayıları okuyabiliyor.
+
+           İçi BOŞ duruyor: dilimleri app.js üretiyor. Ama kabuk burada,
+           çünkü testler id ve sınıfları HTML'de arıyor.
+
+           <g> = "grup". Buradaki döndürme (rotate) dilimlerin saat
+           3 yerine saat 12 hizasından başlamasını sağlıyor; bir kez
+           yazılıp bir daha değişmediği için JavaScript'te değil burada
+           duruyor (testlerin sınıf/id ağı da böylece üstünden geçiyor). -->
+      <section class="grafik-kutu">
+        <h2 class="grafik-baslik">Gider dağılımı</h2>
+        <svg id="halka-grafik" class="halka-grafik" viewBox="0 0 40 40" aria-hidden="true">
+          <g id="halka-dilimler" transform="rotate(-90 20 20)"></g>
+        </svg>
+        <ul id="halka-liste" class="halka-liste"></ul>
+        <p id="halka-bos" class="grafik-bos gizli">Bu ayda gider kaydı yok.</p>
+      </section>
+
+      <!-- ---------------- GRAFİK 2: 6 aylık gelir-gider ----------------
+           viewBox 0 0 300 140 = 6 ay x 50 birimlik şerit, altta etiket
+           payı. app.js'teki ölçüler bu kâğıda göre yazıldı; birini
+           değiştirirsen ötekini de değiştir. -->
+      <section class="grafik-kutu">
+        <h2 class="grafik-baslik">Son 6 ay: gelir ve gider</h2>
+        <div class="grafik-anahtar">
+          <span class="anahtar-gelir">gelir</span>
+          <span class="anahtar-gider">gider</span>
+        </div>
+        <svg id="trend-grafik" class="trend-grafik" viewBox="0 0 300 140" aria-hidden="true"></svg>
+        <p id="trend-bos" class="grafik-bos gizli">Henüz kayıt yok.</p>
       </section>
 
     </section>

@@ -141,6 +141,20 @@ function ayAdi(yil, ay) {
   return AY_BICIMI.format(new Date(yil, ay - 1, 1));
 }
 
+// Aynı işin kısa hâli. Grafiğin altındaki ay etiketleri için:
+// "Ağustos 2026" bir çubuğun altına sığmaz, "Ağu" sığar.
+const KISA_AY_BICIMI = new Intl.DateTimeFormat("tr-TR", { month: "short" });
+
+// (2026, 8) -> "Ağu"
+//
+// DİKKAT: bunun tam çıktısına GÜVENMİYORUZ. Tarayıcının içindeki dil
+// veritabanı (ICU) sürümüne göre "Ağu" da gelebilir "Ağu." da. Bu yüzden
+// testte eşitlik değil "ağu ile başlıyor mu" diye bakıyoruz — yoksa
+// Node sürümü değişince testler sebepsiz kırmızıya dönerdi.
+function ayKisaAdi(yil, ay) {
+  return KISA_AY_BICIMI.format(new Date(yil, ay - 1, 1));
+}
+
 // Ayı ileri/geri kaydırır. ayKaydir(2026, 12, 1) -> { yil: 2027, ay: 1 }
 // Yıl geçişini kendimiz hesaplamıyoruz: Date nesnesine 13. ayı verince
 // kendisi bir sonraki yılın Ocak'ına geçiyor.
@@ -908,6 +922,181 @@ function sablonlariDenetle(ham) {
 }
 
 // ============================================================
+// GRAFİKLER — SAF GEOMETRİ
+// ============================================================
+//
+// Bu bölümde tek bir "çiz" satırı yok; burada yalnızca SAYILAR var.
+// "Bu dilim halkanın yüzde kaçı?", "bu çubuk kaç birim yüksek olmalı?"
+// sorularını burada cevaplıyoruz, çizme işini app.js yapıyor.
+//
+// NEDEN HAZIR GRAFİK KÜTÜPHANESİ KULLANMIYORUZ (Chart.js gibi):
+// üçü bir arada bir sorun çıkarıyordu — 200 KB'ın üzerinde bir dosya
+// (çevrimdışı önbelleğe de girmesi gerekir), yeni bir bağımlılık
+// (anayasamız "bağımlılık yok" diyor) ve çizimi <canvas> içine yaptığı
+// için testlerimizin göremediği bir kör nokta. Geometriyi kendimiz
+// hesaplayınca grafiğin doğruluğu, Node'da sınanabilen düz aritmetiğe
+// dönüşüyor: aşağıdaki her satırın testi var.
+//
+// Grafikler VERİ DEĞİL, TÜRETME: depoda hiçbir şey saklanmıyor,
+// hepsi eldeki kayıtlardan her seferinde yeniden hesaplanıyor.
+
+// Halkanın çevresi (SVG biriminde). 100 seçmemiz bilinçli bir numara:
+// çevre 100 olunca bir yayın UZUNLUĞU doğrudan YÜZDE demek oluyor.
+// %25'lik dilim = 25 birimlik yay. Böylece hiçbir yerde "2 * pi * r"
+// hesabı taşımıyoruz; o hesap yalnız bir kez, app.js'te yarıçapı
+// bulurken geçiyor (r = 100 / (2 * pi)).
+const HALKA_CEVRESI = 100;
+
+// Virgülden sonra iki hane bırakacak şekilde yuvarlar: 33.3333 -> 33.33
+// SVG'ye 15 haneli ondalık yazmanın anlamı yok; hem dosya şişer hem
+// testte karşılaştırması kâbus olur.
+function yuvarla2(sayi) {
+  return Math.round(sayi * 100) / 100;
+}
+
+// Bir ayın gider dağılımı: hangi kategoriye ne kadar gitmiş?
+//
+// Dönen her satır: { kategori, sira, kurus, yuzde }
+//   - Liste kuruşa göre BÜYÜKTEN KÜÇÜĞE sıralı (en çok yiyen üstte).
+//   - `sira` = kategorinin KATEGORILER listesindeki yeri + 1. Rengi bu
+//     belirliyor (.dilim-1 ... .dilim-8). NEDEN sıralamadaki yer değil:
+//     Market bu ay birinci, gelecek ay üçüncü olabilir; rengi listedeki
+//     sabit yerinden alırsak kategori ay değişse de aynı renkte kalır.
+//     Sıralamadan alsaydık her ay bütün renkler yer değiştirirdi.
+//   - Eşitlikte yine `sira` karar veriyor: aynı tutarlı iki kategorinin
+//     sırası tarayıcıya göre değişmesin, sonuç her yerde aynı olsun.
+//   - `yuzde` TAM SAYI ve yalnızca ETİKET içindir; çizim ondan değil,
+//     aşağıdaki halkaDilimleri'nin ondalıklı uzunluklarından gelir.
+//   - Geliri ve yatırımı hiç saymıyoruz: bu grafik "param nereye gitti"
+//     sorusunun cevabı. Harcaması sıfır olan kategori listeye girmez.
+function kategoriDagilimi(kayitlar, yil, ay) {
+  const ayinKayitlari = ayKayitlari(kayitlar, yil, ay);
+  const satirlar = [];
+  let toplam = 0;
+
+  // KATEGORILER üzerinde dönüyoruz, kayıtlar üzerinde değil: böylece
+  // artık listede olmayan (eski, silinmiş) bir kategori kendiliğinden
+  // dışarıda kalıyor — rengi olmayan bir dilim çizmek zorunda kalmıyoruz.
+  for (let i = 0; i < KATEGORILER.length; i++) {
+    const kategori = KATEGORILER[i];
+    const kurus = ayinKayitlari.reduce(
+      (t, k) => (k.tur === "gider" && k.kategori === kategori ? t + k.kurus : t),
+      0
+    );
+    if (kurus <= 0) continue;
+
+    toplam += kurus;
+    satirlar.push({ kategori: kategori, sira: i + 1, kurus: kurus, yuzde: 0 });
+  }
+
+  if (toplam === 0) return [];
+
+  for (const satir of satirlar) {
+    satir.yuzde = Math.round((satir.kurus / toplam) * 100);
+  }
+
+  // Büyükten küçüğe; eşitlerde KATEGORILER sırası.
+  satirlar.sort((a, b) => (b.kurus !== a.kurus ? b.kurus - a.kurus : a.sira - b.sira));
+  return satirlar;
+}
+
+// Dağılımı halka grafiğin geometrisine çevirir.
+//
+// Dönen her satır: { kategori, sira, uzunluk, kayma }
+//   uzunluk -> SVG'de "stroke-dasharray"in dolu kısmı (yayın boyu)
+//   kayma   -> "stroke-dashoffset" (yayın nereden başlayacağı, EKSİ)
+//
+// Halka aslında TEK BİR ÇEMBER değil: üst üste binmiş birkaç çember,
+// her birinin sadece bir parçası çizili. Kesikli çizgi ayarını
+// "şu kadar çiz, sonrasını boş bırak" diye kurup her dilimi kendi
+// başlangıç noktasına kaydırıyoruz.
+//
+// DİKKAT — DİKİŞ TUZAĞI: kaymayı hesaplarken YUVARLANMIŞ uzunlukları
+// toplamıyoruz, HAM oranları topluyoruz; yuvarlamayı en son, çıkışta
+// yapıyoruz. Üç eşit dilimde yuvarlanmışları toplasaydık
+// 33,33 + 33,33 = 66,66 çıkardı ve üçüncü dilim 0,01 birim erken
+// başlayıp halkada gözle görülür ince bir dikiş bırakırdı.
+function halkaDilimleri(dagilim) {
+  const dilimler = [];
+  if (!Array.isArray(dagilim) || dagilim.length === 0) return dilimler;
+
+  let toplam = 0;
+  for (const d of dagilim) toplam += d.kurus;
+  if (toplam <= 0) return dilimler;
+
+  let kumulatif = 0; // HAM oranların toplamı (0 ile 1 arası)
+  for (const d of dagilim) {
+    const oran = d.kurus / toplam;
+    const kayma = yuvarla2(kumulatif * HALKA_CEVRESI);
+
+    dilimler.push({
+      kategori: d.kategori,
+      sira: d.sira,
+      uzunluk: yuvarla2(oran * HALKA_CEVRESI),
+      // DİKKAT: JavaScript'te "eksi sıfır" (-0) diye ayrı bir sayı var
+      // ve Object.is(-0, 0) YANLIŞ döner — testler bunu yakalıyor.
+      // İlk dilimde kayma sıfırdır; başına eksi koymadan bırakıyoruz.
+      kayma: kayma === 0 ? 0 : -kayma,
+    });
+
+    kumulatif += oran;
+  }
+
+  return dilimler;
+}
+
+// Son `adet` ayın gelir/gider özeti — verilen (yil, ay) DAHİL, eskiden
+// yeniye sıralı. Kayıt olmayan aylar listeden düşmez, sıfırlı satır
+// olarak durur: grafikte "o ay hiç yoktu" değil, "o ay boştu" görünsün.
+//
+// Yıl devrini kendimiz hesaplamıyoruz, ayKaydir hallediyor:
+// 2027 Ocak'tan 6 ay geriye gidince 2026 Ağustos'ta çıkıyoruz.
+function aylikTrend(kayitlar, yil, ay, adet) {
+  const trend = [];
+  const sayi = Number.isInteger(adet) && adet > 0 ? adet : 0;
+
+  // i, "kaç ay geriye" demek: en eskiden başlayıp 0'a (seçilen aya) iniyoruz.
+  for (let i = sayi - 1; i >= 0; i--) {
+    const o = ayKaydir(yil, ay, -i);
+    const ozet = ozetHesapla(kayitlar, o.yil, o.ay);
+    trend.push({
+      yil: o.yil,
+      ay: o.ay,
+      etiket: ayKisaAdi(o.yil, o.ay),
+      gelir: ozet.gelir,
+      gider: ozet.gider,
+    });
+  }
+
+  return trend;
+}
+
+// Trend satırlarını ÇUBUK YÜKSEKLİKLERİNE çevirir.
+//
+// Ölçek, aylardaki TÜM gelir ve gider değerlerinin en büyüğüne göre:
+// en yüksek çubuk tam boy olur, ötekiler ona oranlanır. Gelir ve gider
+// ayrı ayrı ölçeklenseydi (her biri kendi maksimumuna) 1.000 TL'lik
+// gider, 50.000 TL'lik gelirle aynı boyda görünürdü — grafik yalan söylerdi.
+//
+// DİKKAT: hiç kayıt yoksa en büyük değer 0 olur ve bölme NaN üretirdi
+// ("Not a Number"). NaN bir SVG özniteliğine yazıldığında çubuk sessizce
+// kaybolur, hata da vermez. O yüzden bölmeden önce sıfırı ayıklıyoruz.
+function trendCubuklari(trend, yukseklik) {
+  let enBuyuk = 0;
+  for (const t of trend) {
+    if (t.gelir > enBuyuk) enBuyuk = t.gelir;
+    if (t.gider > enBuyuk) enBuyuk = t.gider;
+  }
+
+  return trend.map((t) => ({
+    etiket: t.etiket,
+    // Yükseklikler TAM SAYI: SVG'ye 61.33333 yazmanın kimseye faydası yok.
+    gelirYuksek: enBuyuk === 0 ? 0 : Math.round((t.gelir / enBuyuk) * yukseklik),
+    giderYuksek: enBuyuk === 0 ? 0 : Math.round((t.gider / enBuyuk) * yukseklik),
+  }));
+}
+
+// ============================================================
 // YEDEKLEME
 // ============================================================
 //
@@ -1061,6 +1250,7 @@ if (typeof module !== "undefined" && module.exports) {
     bugununAyi,
     ayEtiketi,
     ayAdi,
+    ayKisaAdi,
     ayKaydir,
     ayniAy,
     ayinGunSayisi,
@@ -1081,6 +1271,11 @@ if (typeof module !== "undefined" && module.exports) {
     tekrarOnayla,
     tekrarAtla,
     sablonlariDenetle,
+    HALKA_CEVRESI,
+    kategoriDagilimi,
+    halkaDilimleri,
+    aylikTrend,
+    trendCubuklari,
     yedekMetni,
     yedekOku,
     ayKayitlari,
