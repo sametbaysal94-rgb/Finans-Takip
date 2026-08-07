@@ -839,6 +839,10 @@ bul("ekle-formu").addEventListener("submit", (olay) => {
     formuTemizle();
     sekmeGoster("ozet");
     ozetiYenile();
+    // Şablon kurulduysa bekleyenler paneli de tazelensin: geçmiş tarihli
+    // bir şablonun ("Ocak'tan beri kira") birikmiş tekrarları sayfa
+    // yenilenmeden görünmeliydi (usta denetimi bulgusu).
+    if (tekrarli) tekrarlariGoster();
     bildir(kurusYaz(kayit.kurus) + " kaydedildi ✓" + (tekrarli ? " · her ay tekrarlanacak" : ""));
   } catch (hata) {
     hataGoster(hata.message);
@@ -918,15 +922,37 @@ bul("yedek-dosya").addEventListener("change", () => {
       // depo nesnesi — onay çıkarsa olduğu gibi rafa yazılıyor.
       const yedek = yedekOku(metin);
 
-      const eldeki = kayitlariOku().length;
+      // Onay metni her şeyi açıkça söylüyor (usta denetimi bulgusu):
+      // eski (1. etap) yedeklerde bütçe ve şablon bilgisi yok; öyle bir
+      // dosya yüklenirse mevcut bütçeler ve yinelenen işlemler de
+      // silinir. Kullanıcı bunu onay penceresinde görmeli.
+      const mevcutDepo = depoOku();
+      const kayiplar = [];
+      if (Object.keys(mevcutDepo.butceler).length > 0 && Object.keys(yedek.butceler).length === 0) {
+        kayiplar.push("bütçe limitlerin");
+      }
+      if (mevcutDepo.sablonlar.length > 0 && yedek.sablonlar.length === 0) {
+        kayiplar.push("yinelenen işlemlerin");
+      }
+      const ekUyari = kayiplar.length
+        ? "\n\nDİKKAT: bu yedekte bütçe/şablon bilgisi yok; mevcut " + kayiplar.join(" ve ") + " SİLİNECEK."
+        : "";
+
+      const eldeki = mevcutDepo.kayitlar.length;
       const onay = confirm(
-        `Depodaki ${eldeki} kayıt silinip yerine yedekteki ${yedek.kayitlar.length} kayıt yüklenecek.\n\nDevam edilsin mi?`
+        `Depodaki ${eldeki} kayıt silinip yerine yedekteki ${yedek.kayitlar.length} kayıt yüklenecek. Bütçeler ve yinelenen işlemler de yedektekiyle değiştirilecek.${ekUyari}\n\nDevam edilsin mi?`
       );
       if (!onay) return;
 
       depoYaz(yedek);
       secilenAy = bugununAyi();
       ozetiYenile();
+      // Geri yükleme deponun HER bölümünü değiştirdi; sadece Özet değil,
+      // Rapor'daki bütçe formu, şablon listesi ve bekleyenler paneli de
+      // tazelenmeli (usta denetimi bulgusu — eskiden bayat kalıyorlardı).
+      butceFormunuDoldur();
+      sablonlariCiz();
+      tekrarlariGoster();
       // Geri yükleme damgayı sıfırlıyor (damga dosyada taşınmıyor, bkz.
       // veri.js/yedekMetni). Satırı hemen tazeliyoruz ki ekranda az
       // önceki bayat "Son yedek: 3 gün önce" yazısı kalmasın.

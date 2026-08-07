@@ -949,6 +949,59 @@ esit("bozuk biçim boşlanır", V.depoyuTasi({ sonYedek: "02.01.2026" }).sonYede
 esit("alan hiç yoksa (eski cihaz) boş", V.depoyuTasi({}).sonYedek, "");
 
 // ============================================================
+// 4,12) USTA DENETİMİ DÜZELTMELERİ
+// ============================================================
+//
+// Bu bölümdeki testler, 2. etap bittikten sonra yapılan bağımsız kod
+// denetiminin bulgularına karşılık geliyor. Her biri gerçek bir açığı
+// kapatan yamanın bekçisi.
+
+baslik("gecerliTarih — biçim yetmez, takvimde de olmalı");
+dogru("2026-02-28 geçerli", V.gecerliTarih("2026-02-28"));
+dogru("2026-02-31 takvimde yok", V.gecerliTarih("2026-02-31") === false);
+dogru("2028-02-29 artık yıl, geçerli", V.gecerliTarih("2028-02-29"));
+dogru("2026-02-29 artık yıl değil", V.gecerliTarih("2026-02-29") === false);
+dogru("2026-13-01 diye ay yok", V.gecerliTarih("2026-13-01") === false);
+dogru("2026-04-31 diye gün yok", V.gecerliTarih("2026-04-31") === false);
+dogru("2026-00-10 sıfırıncı ay olmaz", V.gecerliTarih("2026-00-10") === false);
+dogru("biçim bozuksa zaten geçersiz", V.gecerliTarih("31.02.2026") === false);
+
+baslik("hayalet tarihler kapıdan giremiyor");
+depoyuTemizle();
+hataAtmali("kayitEkle 31 Şubat'ı reddediyor", () =>
+  V.kayitEkle({ tur: "gelir", tutar: 10, tarih: "2026-02-31" })
+);
+hataAtmali("yedekOku 31 Şubat'lı kaydı reddediyor", () =>
+  V.yedekOku('[{"id":"x","tur":"gelir","kurus":100,"tarih":"2026-02-31"}]')
+);
+
+baslik("çift onay ve geriye atlama koruması");
+depoyuTemizle();
+const korumaSablonu = V.sablonEkle({
+  tur: "gider", tutar: 100, baslangic: "2026-05-10", kategori: "Kira", aciklama: "Kira",
+});
+esit("iki bekleyen var", V.bekleyenTekrarlar(V.sablonlariOku(), "2026-07-15").length, 2);
+dogru("ilk onay kayıt üretiyor", V.tekrarOnayla(korumaSablonu.id, "2026-06-10") !== null);
+esit("AYNI tarihe ikinci onay: null (çift kayıt yok)", V.tekrarOnayla(korumaSablonu.id, "2026-06-10"), null);
+esit("kayıt sayısı hâlâ 1", V.kayitlariOku().length, 1);
+esit("geriye tarihli atlama reddediliyor", V.tekrarAtla(korumaSablonu.id, "2026-05-15"), false);
+esit("sonUretim geriye gitmedi", V.sablonlariOku()[0].sonUretim, "2026-06-10");
+dogru("ileri atlama çalışıyor", V.tekrarAtla(korumaSablonu.id, "2026-07-10"));
+esit("sonUretim ilerledi", V.sablonlariOku()[0].sonUretim, "2026-07-10");
+
+baslik("bozuk v2 rafı sağlam v1 kopyasını gölgelemiyor");
+depoyuTemizle();
+localStorage.setItem(
+  V.ESKI_ANAHTAR,
+  JSON.stringify([{ id: "kurtar1", tur: "gelir", kurus: 777, tarih: "2026-08-01", aciklama: "", kategori: "" }])
+);
+localStorage.setItem(V.DEPO_ANAHTARI, "{bozuk json");
+console.error = () => {};
+esit("v1'den kurtarıldı", V.kayitlariOku().length, 1);
+esit("kurtarılan kuruş bozulmadı", V.kayitlariOku()[0].kurus, 777);
+console.error = eskiHataYazici;
+
+// ============================================================
 // 5) DOSYALAR BİRBİRİYLE UYUMLU MU?
 // ============================================================
 //

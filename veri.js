@@ -196,6 +196,20 @@ function tarihKur(yil, ay, gun) {
   return `${yil}-${String(ay).padStart(2, "0")}-${String(guvenliGun).padStart(2, "0")}`;
 }
 
+// Bir tarih metni hem BİÇİM hem TAKVİM olarak geçerli mi?
+//
+// DİKKAT: "2026-02-31" kalıba uyar ama takvimde yoktur. Sadece kalıba
+// bakan eski denetim onu içeri alıyordu; sonra new Date sessizce
+// 3 Mart'a taşırıp ekranda başka, hesapta başka bir ay gösterebilirdi
+// (usta denetimi bulgusu). Artık günün o ayda gerçekten var olduğuna
+// da bakıyoruz.
+function gecerliTarih(tarih) {
+  if (typeof tarih !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(tarih)) return false;
+  const [yil, ay, gun] = tarih.split("-").map(Number);
+  if (ay < 1 || ay > 12) return false;
+  return gun >= 1 && gun <= ayinGunSayisi(yil, ay);
+}
+
 const GUN_BICIMI = new Intl.DateTimeFormat("tr-TR", {
   day: "numeric",
   month: "long",
@@ -309,10 +323,17 @@ function depoOku() {
   const metin = localStorage.getItem(DEPO_ANAHTARI);
   if (metin) {
     try {
-      return depoyuTasi(JSON.parse(metin));
+      const ham = JSON.parse(metin);
+      // Yalnızca gerçek bir nesneyi kabul ediyoruz; "çöp" gibi geçerli
+      // JSON ama saçma değerlerde aşağıya, v1 kopyasına düşüyoruz.
+      if (typeof ham === "object" && ham !== null) return depoyuTasi(ham);
+      console.error("v2 rafında beklenmeyen içerik, v1 kopyasına bakıyorum.");
     } catch (hata) {
-      console.error("Depo okunamadı, boş başlıyorum:", hata);
-      return bosDepo();
+      // DİKKAT: eskiden burada hemen boş depo dönüyorduk. Usta denetimi
+      // haklı çıktı: v2 bozulmuşsa elimizde hâlâ sağlam bir v1 kurtarma
+      // kopyası olabilir — boş dönmek onu yok saymak olurdu. Şimdi
+      // düşüp v1'e bakıyoruz; o da yoksa zaten boş döneceğiz.
+      console.error("v2 rafı bozuk, v1 kurtarma kopyasına bakıyorum:", hata);
     }
   }
 
@@ -421,9 +442,9 @@ function kaydiDenetle(yeni) {
   }
 
   const tarih = yeni.tarih ? String(yeni.tarih) : bugununTarihi();
-  // Basit bir kalıp kontrolü: 4 hane - 2 hane - 2 hane
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(tarih)) {
-    throw new Error(`Geçersiz tarih: "${tarih}". Biçim 2026-08-06 gibi olmalı.`);
+  // Hem biçim hem takvim denetimi ("2026-02-31" biçime uyar ama yoktur).
+  if (!gecerliTarih(tarih)) {
+    throw new Error(`Geçersiz tarih: "${tarih}". Biçim 2026-08-06 gibi olmalı ve takvimde bulunmalı.`);
   }
 
   // Kategori sadece giderde anlamlı. Gelir/yatırımda boş bırakıyoruz.
@@ -845,6 +866,12 @@ function tekrarOnayla(sablonId, tarih) {
   const sablon = depoOku().sablonlar.find((s) => s && s.id === sablonId);
   if (!sablon) return null;
 
+  // DİKKAT — ÇİFT ONAY KORUMASI (usta denetimi bulgusu): bu tarih zaten
+  // üretilmiş ya da atlanmışsa ikinci kez üretmiyoruz. İki pencere
+  // açıkken birinde onaylanan tekrar, ötekinin bayat "Ekle" düğmesinden
+  // bir daha eklenemesin. Tarihler "YYYY-MM-DD" olduğu için <= güvenli.
+  if (tarih <= sablon.sonUretim) return null;
+
   let kayit;
   try {
     kayit = kayitEkle({
@@ -881,13 +908,18 @@ function tekrarOnayla(sablonId, tarih) {
 // "Bu ay bu ödeme olmadı" durumunun cevabı bu — ilerletmeseydik aynı
 // satır her açılışta karşımıza çıkardı.
 function tekrarAtla(sablonId, tarih) {
-  if (typeof tarih !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(tarih)) {
-    throw new Error(`Geçersiz tarih: "${tarih}". Biçim 2026-08-06 gibi olmalı.`);
+  if (!gecerliTarih(tarih)) {
+    throw new Error(`Geçersiz tarih: "${tarih}". Biçim 2026-08-06 gibi olmalı ve takvimde bulunmalı.`);
   }
 
   const depo = depoOku();
   const sablon = depo.sablonlar.find((s) => s && s.id === sablonId);
   if (!sablon) return false;
+
+  // Sayaç ASLA geriye gitmez (usta denetimi bulgusu): bayat bir ekrandan
+  // eski tarihli "Atla" gelirse yok sayıyoruz — geri giden sayaç, aynı
+  // tekrarların yeniden "bekleyen" olarak dirilmesi demekti.
+  if (tarih <= sablon.sonUretim) return false;
 
   sablon.sonUretim = tarih;
   depoYaz(depo);
@@ -927,8 +959,8 @@ function sablonlariDenetle(ham) {
     if (s.siklik !== "aylik") {
       throw new Error(`${yer} bozuk: sıklık "${s.siklik}" tanınmadı (şimdilik yalnız "aylik").`);
     }
-    if (typeof s.sonUretim !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(s.sonUretim)) {
-      throw new Error(`${yer} bozuk: sonUretim "${s.sonUretim}" beklenen biçimde değil.`);
+    if (!gecerliTarih(s.sonUretim)) {
+      throw new Error(`${yer} bozuk: sonUretim "${s.sonUretim}" beklenen biçimde değil ya da takvimde yok.`);
     }
 
     // Kategori kuralı kayıtlardaki gibi: yalnız giderde anlamlı ve
@@ -1239,8 +1271,8 @@ function yedekOku(metin) {
     if (!Number.isInteger(k.kurus) || k.kurus <= 0) {
       throw new Error(`${yer} bozuk: tutar (kurus) pozitif tam sayı olmalı.`);
     }
-    if (typeof k.tarih !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(k.tarih)) {
-      throw new Error(`${yer} bozuk: tarih "${k.tarih}" beklenen biçimde değil.`);
+    if (!gecerliTarih(k.tarih)) {
+      throw new Error(`${yer} bozuk: tarih "${k.tarih}" beklenen biçimde değil ya da takvimde yok.`);
     }
     // Açıklama ve kategori süs: eksikse boşla tamamlanır, hesap bozulmaz.
     // Tanımadığımız fazladan alanları da içeri almıyoruz.
@@ -1314,6 +1346,7 @@ if (typeof module !== "undefined" && module.exports) {
     kurusSade,
     bugununTarihi,
     bugununAyi,
+    gecerliTarih,
     ayEtiketi,
     ayAdi,
     ayKisaAdi,
