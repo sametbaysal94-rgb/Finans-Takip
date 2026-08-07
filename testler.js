@@ -497,6 +497,240 @@ hataAtmali("bütçe bölümü dizi gelirse reddedilir", () =>
 );
 
 // ============================================================
+// 4,9) YİNELENEN İŞLEMLER
+// ============================================================
+
+baslik("ayinGunSayisi — ayın kaç günü var?");
+esit("2026 Şubat", V.ayinGunSayisi(2026, 2), 28);
+esit("2028 Şubat (artık yıl)", V.ayinGunSayisi(2028, 2), 29);
+esit("2026 Nisan", V.ayinGunSayisi(2026, 4), 30);
+esit("2026 Aralık", V.ayinGunSayisi(2026, 12), 31);
+// Artık yıl kuralının iki uç örneği: 2000 artık yıl, 1900 değil.
+esit("2000 Şubat (400'e bölünüyor)", V.ayinGunSayisi(2000, 2), 29);
+esit("1900 Şubat (100'e bölünüyor ama 400'e değil)", V.ayinGunSayisi(1900, 2), 28);
+
+baslik("tarihKur — gün ayın son gününe kilitleniyor");
+esit("(2026,2,31) -> 28 Şubat", V.tarihKur(2026, 2, 31), "2026-02-28");
+esit("(2028,2,31) -> 29 Şubat", V.tarihKur(2028, 2, 31), "2028-02-29");
+esit("(2026,4,31) -> 30 Nisan", V.tarihKur(2026, 4, 31), "2026-04-30");
+esit("(2026,8,6) olduğu gibi", V.tarihKur(2026, 8, 6), "2026-08-06");
+esit("tek haneler iki haneye tamamlanıyor", V.tarihKur(2026, 1, 5), "2026-01-05");
+
+baslik("sonrakiTekrar — KAYMA TUZAĞI (gün şablondan gelir)");
+esit("31 Ocak -> 28 Şubat", V.sonrakiTekrar("2026-01-31", 31), "2026-02-28");
+// Zincirin can alıcı halkası: 28'e YAPIŞMIYOR, tekrar 31'e dönüyor.
+esit("28 Şubat -> 31 Mart", V.sonrakiTekrar("2026-02-28", 31), "2026-03-31");
+esit("31 Mart -> 30 Nisan", V.sonrakiTekrar("2026-03-31", 31), "2026-04-30");
+esit("30 Nisan -> 31 Mayıs", V.sonrakiTekrar("2026-04-30", 31), "2026-05-31");
+esit("yıl devri: 5 Aralık -> 5 Ocak", V.sonrakiTekrar("2026-12-05", 5), "2027-01-05");
+esit("düz ay: 15 Ocak -> 15 Şubat", V.sonrakiTekrar("2026-01-15", 15), "2026-02-15");
+esit("artık yılda 29 Şubat", V.sonrakiTekrar("2028-01-31", 31), "2028-02-29");
+
+baslik("TEKRAR_AZAMI — güvenlik freni");
+esit("değer", V.TEKRAR_AZAMI, 24);
+
+baslik("sablonEkle / sablonlariOku / sablonSil");
+depoyuTemizle();
+esit("başta şablon yok", V.sablonlariOku().length, 0);
+const sablonKira = V.sablonEkle({
+  tur: "gider", tutar: "5.000", baslangic: "2026-01-15", aciklama: "Kira", kategori: "Kira",
+});
+esit("gün başlangıç tarihinden alındı", sablonKira.gun, 15);
+esit("kuruş", sablonKira.kurus, 500000);
+esit("sonUretim = başlangıç", sablonKira.sonUretim, "2026-01-15");
+esit("sıklık aylık", sablonKira.siklik, "aylik");
+esit("kategori", sablonKira.kategori, "Kira");
+dogru("kimlik üretildi", sablonKira.id.length > 5);
+esit("depoya yazıldı", V.sablonlariOku().length, 1);
+const sablonMaas = V.sablonEkle({ tur: "gelir", tutar: 30000, baslangic: "2026-01-31", aciklama: "Maaş" });
+esit("gelirde kategori boş", sablonMaas.kategori, "");
+esit("ayın 31'i", sablonMaas.gun, 31);
+esit("iki şablon", V.sablonlariOku().length, 2);
+esit("şablon eklemek kayıt üretmiyor", V.kayitlariOku().length, 0);
+hataAtmali("geçersiz tür", () => V.sablonEkle({ tur: "hediye", tutar: 10, baslangic: "2026-01-01" }));
+hataAtmali("tutar sıfır", () => V.sablonEkle({ tur: "gider", tutar: 0, baslangic: "2026-01-01", kategori: "Market" }));
+hataAtmali("geçersiz kategori", () => V.sablonEkle({ tur: "gider", tutar: 10, baslangic: "2026-01-01", kategori: "Tatil" }));
+hataAtmali("bozuk başlangıç tarihi", () => V.sablonEkle({ tur: "gelir", tutar: 10, baslangic: "01.01.2026" }));
+esit("bozuklar depoya girmedi", V.sablonlariOku().length, 2);
+esit("sablonSil var olanı", V.sablonSil(sablonMaas.id), true);
+esit("kalan şablon", V.sablonlariOku().length, 1);
+esit("sablonSil olmayanı", V.sablonSil("boyle-bir-id-yok"), false);
+esit("sayı değişmedi", V.sablonlariOku().length, 1);
+
+baslik("bekleyenTekrarlar — zamanı gelenler");
+// Şablonları elle kuruyoruz: fonksiyon SAF, depoya hiç bakmıyor.
+const sablonYap = (ek) =>
+  Object.assign(
+    { id: "s1", tur: "gider", kurus: 100000, gun: 5, aciklama: "Kira", kategori: "Kira", siklik: "aylik", sonUretim: "2026-05-05" },
+    ek
+  );
+
+const ucAyGeride = V.bekleyenTekrarlar([sablonYap({})], "2026-08-20");
+esit("3 ay geride -> 3 bekleyen", ucAyGeride.length, 3);
+esit("1. sıra en eski", ucAyGeride[0].tarih, "2026-06-05");
+esit("2. sıra", ucAyGeride[1].tarih, "2026-07-05");
+esit("3. sıra", ucAyGeride[2].tarih, "2026-08-05");
+esit("şablon kimliği taşınıyor", ucAyGeride[0].sablonId, "s1");
+esit("kuruş taşınıyor", ucAyGeride[0].kurus, 100000);
+esit("kategori taşınıyor", ucAyGeride[0].kategori, "Kira");
+esit("açıklama taşınıyor", ucAyGeride[0].aciklama, "Kira");
+esit("bugün üretilmiş -> 0 bekleyen", V.bekleyenTekrarlar([sablonYap({ sonUretim: "2026-08-20" })], "2026-08-20").length, 0);
+esit("sonUretim GELECEKTE -> 0 bekleyen", V.bekleyenTekrarlar([sablonYap({ sonUretim: "2027-01-05" })], "2026-08-20").length, 0);
+esit("tam gününde -> 1 bekleyen", V.bekleyenTekrarlar([sablonYap({ sonUretim: "2026-07-05" })], "2026-08-05").length, 1);
+esit("bir gün erken -> 0 bekleyen", V.bekleyenTekrarlar([sablonYap({ sonUretim: "2026-07-05" })], "2026-08-04").length, 0);
+esit("boş şablon listesi", V.bekleyenTekrarlar([], "2026-08-20").length, 0);
+esit("liste değilse boş", V.bekleyenTekrarlar(null, "2026-08-20").length, 0);
+
+baslik("bekleyenTekrarlar — bozuk şablonlar çökertmiyor");
+// Bozuk bir sonUretim (elle düzenleme, bozuk yedek) sonsuz liste üretmesin.
+esit(
+  "1999'dan kalma sonUretim TEKRAR_AZAMI ile sınırlı",
+  V.bekleyenTekrarlar([sablonYap({ sonUretim: "1999-01-01", gun: 1 })], "2026-08-20").length,
+  V.TEKRAR_AZAMI
+);
+esit("bozuk tarih biçimi atlanıyor", V.bekleyenTekrarlar([sablonYap({ sonUretim: "dun" })], "2026-08-20").length, 0);
+esit("sonUretim yoksa atlanıyor", V.bekleyenTekrarlar([sablonYap({ sonUretim: undefined })], "2026-08-20").length, 0);
+esit("gün 0 ise atlanıyor", V.bekleyenTekrarlar([sablonYap({ gun: 0 })], "2026-08-20").length, 0);
+esit("gün 32 ise atlanıyor", V.bekleyenTekrarlar([sablonYap({ gun: 32 })], "2026-08-20").length, 0);
+esit("null şablon atlanıyor", V.bekleyenTekrarlar([null, sablonYap({})], "2026-08-20").length, 3);
+
+baslik("bekleyenTekrarlar — iki şablon tarihe göre karışıyor");
+const ikiSablon = V.bekleyenTekrarlar(
+  [
+    sablonYap({ id: "kira", gun: 1, sonUretim: "2026-06-01", aciklama: "Kira" }),
+    sablonYap({ id: "maas", tur: "gelir", kategori: "", gun: 15, sonUretim: "2026-06-15", aciklama: "Maaş" }),
+  ],
+  "2026-08-20"
+);
+esit("toplam bekleyen", ikiSablon.length, 4);
+esit("1. sıra", ikiSablon[0].tarih, "2026-07-01");
+esit("2. sıra", ikiSablon[1].tarih, "2026-07-15");
+esit("3. sıra", ikiSablon[2].tarih, "2026-08-01");
+esit("4. sıra", ikiSablon[3].tarih, "2026-08-15");
+esit("4. sıranın şablonu", ikiSablon[3].sablonId, "maas");
+
+baslik("bekleyenTekrarlar SAF — depoya dokunmuyor");
+depoyuTemizle();
+V.kayitEkle({ tur: "gelir", tutar: 10, tarih: "2026-08-01" });
+V.bekleyenTekrarlar([sablonYap({ sonUretim: "2026-01-05" })], "2026-08-20");
+esit("kayıt sayısı değişmedi", V.kayitlariOku().length, 1);
+esit("şablon eklenmedi", V.sablonlariOku().length, 0);
+
+baslik("tekrarOnayla — kayıt üretir, sayacı ilerletir");
+depoyuTemizle();
+const onaySablonu = V.sablonEkle({
+  tur: "gider", tutar: "2.500", baslangic: "2026-05-10", aciklama: "Kira", kategori: "Kira",
+});
+const bekleyenler = V.bekleyenTekrarlar(V.sablonlariOku(), "2026-08-20");
+esit("3 bekleyen var", bekleyenler.length, 3);
+const uretilen = V.tekrarOnayla(onaySablonu.id, bekleyenler[0].tarih);
+esit("kayıt üretildi", V.kayitlariOku().length, 1);
+esit("kaydın tarihi", uretilen.tarih, "2026-06-10");
+esit("kuruş TL turuna girmeden korundu", uretilen.kurus, 250000);
+esit("kategori korundu", uretilen.kategori, "Kira");
+esit("açıklama korundu", uretilen.aciklama, "Kira");
+esit("sablonId bağlandı", uretilen.sablonId, onaySablonu.id);
+esit("sonUretim ilerledi", V.sablonlariOku()[0].sonUretim, "2026-06-10");
+esit("bekleyen sayısı bir azaldı", V.bekleyenTekrarlar(V.sablonlariOku(), "2026-08-20").length, 2);
+esit("şablon silinmedi", V.sablonlariOku().length, 1);
+esit("bilinmeyen şablon -> null", V.tekrarOnayla("boyle-bir-id-yok", "2026-08-10"), null);
+esit("bilinmeyen şablon kayıt üretmedi", V.kayitlariOku().length, 1);
+
+baslik("tekrarAtla — kayıt YOK ama sayaç yine ilerler");
+esit("true döndü", V.tekrarAtla(onaySablonu.id, "2026-07-10"), true);
+esit("kayıt sayısı artmadı", V.kayitlariOku().length, 1);
+esit("sonUretim yine ilerledi", V.sablonlariOku()[0].sonUretim, "2026-07-10");
+esit("bekleyen 1 kaldı", V.bekleyenTekrarlar(V.sablonlariOku(), "2026-08-20").length, 1);
+esit("bilinmeyen şablon -> false", V.tekrarAtla("boyle-bir-id-yok", "2026-08-10"), false);
+
+baslik("tekrarOnayla — kategorisi silinmiş şablon Türkçe hata veriyor");
+depoyuTemizle();
+const bozukDepo = V.bosDepo();
+bozukDepo.sablonlar = [
+  { id: "bozuk", tur: "gider", kurus: 1000, gun: 10, aciklama: "Eski", kategori: "Tatil", siklik: "aylik", sonUretim: "2026-07-10" },
+];
+V.depoYaz(bozukDepo);
+hataAtmali("tanınmayan kategorili şablon", () => V.tekrarOnayla("bozuk", "2026-08-10"));
+esit("kayıt üretilmedi", V.kayitlariOku().length, 0);
+esit("sayaç ilerlemedi (yarım iş kalmadı)", V.sablonlariOku()[0].sonUretim, "2026-07-10");
+
+baslik("kayitEkle — doğrudan kuruş ve sablonId");
+depoyuTemizle();
+const dogrudanKurus = V.kayitEkle({ tur: "gelir", kurus: 123456, tarih: "2026-08-01", aciklama: "Doğrudan" });
+esit("kuruş aynen alındı", dogrudanKurus.kurus, 123456);
+esit("sablonId varsayılanı boş", dogrudanKurus.sablonId, "");
+const bagliKayit = V.kayitEkle({ tur: "gelir", tutar: 10, tarih: "2026-08-01", sablonId: "s-42" });
+esit("sablonId saklandı", bagliKayit.sablonId, "s-42");
+hataAtmali("kuruş 0 reddedilir", () => V.kayitEkle({ tur: "gelir", kurus: 0, tarih: "2026-08-01" }));
+hataAtmali("kuruş eksi reddedilir", () => V.kayitEkle({ tur: "gelir", kurus: -5, tarih: "2026-08-01" }));
+
+baslik("kaydiDenetle — ortak doğrulama kapısı");
+esit("temiz kuruş dönüyor", V.kaydiDenetle({ tur: "gider", tutar: "12,50", tarih: "2026-08-01", kategori: "Market" }).kurus, 1250);
+esit("gelirde kategori boşlanır", V.kaydiDenetle({ tur: "gelir", tutar: 5, tarih: "2026-08-01", kategori: "Market" }).kategori, "");
+esit("açıklamanın boşlukları kırpılır", V.kaydiDenetle({ tur: "gelir", tutar: 5, aciklama: "  Maaş  " }).aciklama, "Maaş");
+hataAtmali("bozuk türü reddeder", () => V.kaydiDenetle({ tur: "yok", tutar: 5 }));
+esit("kaydiDenetle depoya YAZMIYOR", V.kayitlariOku().length, 2);
+
+baslik("şablonlar yedeğe girip çıkıyor");
+depoyuTemizle();
+V.sablonEkle({ tur: "gider", tutar: "1.000", baslangic: "2026-03-15", aciklama: "Netflix", kategori: "Eğlence" });
+V.kayitEkle({ tur: "gelir", tutar: 10, tarih: "2026-08-01" });
+const sablonluYedek = V.yedekMetni();
+esit("zarfta şablon var", JSON.parse(sablonluYedek).sablonlar.length, 1);
+esit("zarftaki şablonun günü", JSON.parse(sablonluYedek).sablonlar[0].gun, 15);
+depoyuTemizle();
+const geriGelenDepo = V.yedekOku(sablonluYedek);
+esit("şablon geri geliyor", geriGelenDepo.sablonlar.length, 1);
+esit("açıklama korundu", geriGelenDepo.sablonlar[0].aciklama, "Netflix");
+esit("kuruş korundu", geriGelenDepo.sablonlar[0].kurus, 100000);
+esit("sonUretim korundu", geriGelenDepo.sablonlar[0].sonUretim, "2026-03-15");
+esit(
+  "eski düz dizi yedekte şablon boş",
+  V.yedekOku('[{"id":"e1","tur":"gelir","kurus":500,"tarih":"2026-05-01"}]').sablonlar.length,
+  0
+);
+esit("şablon bölümü olmayan zarf -> boş", V.yedekOku('{"surum":2,"kayitlar":[]}').sablonlar.length, 0);
+
+baslik("yedekteki bozuk şablon reddediliyor");
+const sablonZarfi = (icerik) => '{"surum":2,"kayitlar":[],"sablonlar":[' + icerik + "]}";
+hataAtmali("kimlik yok", () =>
+  V.yedekOku(sablonZarfi('{"tur":"gelir","kurus":100,"gun":5,"siklik":"aylik","sonUretim":"2026-01-05"}'))
+);
+hataAtmali("geçersiz tür", () =>
+  V.yedekOku(sablonZarfi('{"id":"a","tur":"hediye","kurus":100,"gun":5,"siklik":"aylik","sonUretim":"2026-01-05"}'))
+);
+hataAtmali("kuruş ondalıklı", () =>
+  V.yedekOku(sablonZarfi('{"id":"a","tur":"gelir","kurus":10.5,"gun":5,"siklik":"aylik","sonUretim":"2026-01-05"}'))
+);
+hataAtmali("gün 32", () =>
+  V.yedekOku(sablonZarfi('{"id":"a","tur":"gelir","kurus":100,"gun":32,"siklik":"aylik","sonUretim":"2026-01-05"}'))
+);
+hataAtmali("tanınmayan sıklık", () =>
+  V.yedekOku(sablonZarfi('{"id":"a","tur":"gelir","kurus":100,"gun":5,"siklik":"haftalik","sonUretim":"2026-01-05"}'))
+);
+hataAtmali("bozuk sonUretim", () =>
+  V.yedekOku(sablonZarfi('{"id":"a","tur":"gelir","kurus":100,"gun":5,"siklik":"aylik","sonUretim":"01.01.2026"}'))
+);
+hataAtmali("giderde tanınmayan kategori", () =>
+  V.yedekOku(sablonZarfi('{"id":"a","tur":"gider","kurus":100,"gun":5,"siklik":"aylik","sonUretim":"2026-01-05","kategori":"Tatil"}'))
+);
+hataAtmali("şablon bölümü liste değil", () => V.yedekOku('{"surum":2,"kayitlar":[],"sablonlar":{"a":1}}'));
+esit("sablonlariDenetle eksik bölümü boşluyor", V.sablonlariDenetle(undefined).length, 0);
+esit("sablonlariDenetle null -> boş", V.sablonlariDenetle(null).length, 0);
+
+baslik("sablonId yedek turunu atlatıyor (beyaz liste denetimi)");
+depoyuTemizle();
+V.kayitEkle({ tur: "gider", tutar: 100, tarih: "2026-08-01", kategori: "Market", sablonId: "s-99" });
+const bagliYedek = V.yedekMetni();
+esit("zarfta sablonId yazıyor", JSON.parse(bagliYedek).kayitlar[0].sablonId, "s-99");
+esit("yedekten dönünce hâlâ duruyor", V.yedekOku(bagliYedek).kayitlar[0].sablonId, "s-99");
+esit(
+  "eski kayıtta sablonId boşla tamamlanıyor",
+  V.yedekOku('[{"id":"x","tur":"gelir","kurus":100,"tarih":"2026-01-01"}]').kayitlar[0].sablonId,
+  ""
+);
+
+// ============================================================
 // 5) DOSYALAR BİRBİRİYLE UYUMLU MU?
 // ============================================================
 //

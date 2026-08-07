@@ -308,6 +308,214 @@ bul("kayit-listesi").addEventListener("click", (olay) => {
 });
 
 // ============================================================
+// YİNELENEN İŞLEMLER — "zamanı gelenler" paneli
+// ============================================================
+//
+// Kasa (veri.js) bize sadece "şu tarihlerde şunlar bekliyor" listesini
+// veriyor; bu liste hiçbir yerde saklanmıyor, her seferinde şablonların
+// sonUretim tarihinden yeniden hesaplanıyor. Burada yaptığımız iş onu
+// ekrana dökmek ve iki düğmeyi (Ekle / Atla) kasaya bağlamak.
+
+// Panelin tek satırını üretir: solda ne olduğu, sağda iki düğme.
+function tekrarSatiriYap(bekleyen) {
+  const satir = document.createElement("li");
+  satir.className = "tekrar-satir";
+
+  const bilgi = document.createElement("div");
+  bilgi.className = "tekrar-bilgi";
+
+  const ad = document.createElement("strong");
+  // Açıklama boşsa tür adını yazıyoruz ki satır adsız kalmasın.
+  ad.textContent = bekleyen.aciklama || turAdi(bekleyen.tur);
+  bilgi.appendChild(ad);
+
+  const tarih = document.createElement("span");
+  tarih.className = "tekrar-tarih";
+  tarih.textContent = tarihYaz(bekleyen.tarih);
+  bilgi.appendChild(tarih);
+
+  // Tutarın işareti kayıt listesindekiyle aynı mantıkta: gelir +,
+  // gider −, yatırım işaretsiz. Aynı şey iki yerde farklı görünmesin.
+  const tutar = document.createElement("span");
+  tutar.className = "tekrar-tutar tutar-" + bekleyen.tur;
+  const isaret = bekleyen.tur === "gelir" ? "+" : bekleyen.tur === "gider" ? "−" : "";
+  tutar.textContent = isaret + kurusYaz(bekleyen.kurus);
+  bilgi.appendChild(tutar);
+
+  satir.appendChild(bilgi);
+
+  // Düğmeler hangi şablonun hangi tarihini işlediklerini kendi
+  // üzerlerinde taşıyor. Dinamik id ÜRETMİYORUZ: id'ler HTML'de durur,
+  // JavaScript'in uydurduğu id'ler testlerin göremediği bir kör nokta olurdu.
+  const ekleDugmesi = document.createElement("button");
+  ekleDugmesi.type = "button";
+  ekleDugmesi.className = "tekrar-ekle";
+  ekleDugmesi.dataset.id = bekleyen.sablonId;
+  ekleDugmesi.dataset.tarih = bekleyen.tarih;
+  ekleDugmesi.textContent = "Ekle";
+  satir.appendChild(ekleDugmesi);
+
+  const atlaDugmesi = document.createElement("button");
+  atlaDugmesi.type = "button";
+  atlaDugmesi.className = "tekrar-atla";
+  atlaDugmesi.dataset.id = bekleyen.sablonId;
+  atlaDugmesi.dataset.tarih = bekleyen.tarih;
+  atlaDugmesi.textContent = "Atla";
+  satir.appendChild(atlaDugmesi);
+
+  return satir;
+}
+
+// Paneli baştan çizer. Bekleyen yoksa paneli tümden gizler —
+// yinelenen işlem kullanmayan birinin Özet'i kalabalıklaşmasın.
+function tekrarlariGoster() {
+  const kutu = bul("tekrar-kutusu");
+  const liste = bul("tekrar-listesi");
+  const bekleyenler = bekleyenTekrarlar(sablonlariOku(), bugununTarihi());
+
+  liste.innerHTML = "";
+  if (bekleyenler.length === 0) {
+    gizle(kutu);
+    return;
+  }
+
+  goster(kutu);
+  for (const bekleyen of bekleyenler) liste.appendChild(tekrarSatiriYap(bekleyen));
+}
+
+// Bir işlemden sonra ekranın tazelenmesi hep aynı üç adım.
+function tekrarSonrasiYenile() {
+  ozetiYenile();
+  tekrarlariGoster();
+}
+
+// Tek satırlık onay/atla. Dinleyici LİSTEYE bağlı, satırlara değil:
+// her işlemden sonra satırlar baştan üretiliyor, tek tek bağlanan
+// dinleyiciler çöpe giderdi (olay devri — kayıt listesindekiyle aynı yöntem).
+bul("tekrar-listesi").addEventListener("click", (olay) => {
+  const dugme = olay.target.closest("button");
+  if (!dugme) return;
+
+  const sablonId = dugme.dataset.id;
+  const tarih = dugme.dataset.tarih;
+  if (!sablonId || !tarih) return;
+
+  if (dugme.classList.contains("tekrar-ekle")) {
+    try {
+      const kayit = tekrarOnayla(sablonId, tarih);
+      if (!kayit) return;
+      bildir((kayit.aciklama || turAdi(kayit.tur)) + " eklendi ✓");
+    } catch (hata) {
+      // Şablonun kategorisi silinmiş olabilir; kasa Türkçe bir mesajla
+      // durduruyor, biz de onu olduğu gibi gösteriyoruz.
+      alert(hata.message);
+    }
+  } else {
+    tekrarAtla(sablonId, tarih);
+    bildir("Atlandı");
+  }
+
+  tekrarSonrasiYenile();
+});
+
+// "Hepsini ekle" / "Hepsini atla".
+//
+// DİKKAT: listeyi baştan sona işliyoruz ve liste eskiden yeniye sıralı.
+// Her onay şablonun sonUretim'ini ilerlettiği için sıra ters olsaydı
+// (önce en yeni) arkada kalan eski satırlar kaybolurdu.
+function tekrarHepsiniIsle(onayla) {
+  const bekleyenler = bekleyenTekrarlar(sablonlariOku(), bugununTarihi());
+  if (bekleyenler.length === 0) return;
+
+  let sayi = 0;
+  for (const bekleyen of bekleyenler) {
+    try {
+      if (onayla) {
+        if (tekrarOnayla(bekleyen.sablonId, bekleyen.tarih)) sayi++;
+      } else if (tekrarAtla(bekleyen.sablonId, bekleyen.tarih)) {
+        sayi++;
+      }
+    } catch (hata) {
+      // Bozuk bir şablon toplu işlemi tümden durdurmasın: onu atlayıp
+      // devam ediyoruz, kullanıcı mesajı görüyor.
+      alert(hata.message);
+    }
+  }
+
+  tekrarSonrasiYenile();
+  bildir(sayi + (onayla ? " kayıt eklendi ✓" : " kayıt atlandı"));
+}
+
+bul("tekrar-hepsi-ekle").addEventListener("click", () => tekrarHepsiniIsle(true));
+bul("tekrar-hepsi-atla").addEventListener("click", () => tekrarHepsiniIsle(false));
+
+// --- Rapor sekmesindeki şablon listesi ---
+
+function sablonSatiriYap(sablon) {
+  const satir = document.createElement("li");
+  satir.className = "sablon-satir";
+
+  const bilgi = document.createElement("div");
+  bilgi.className = "sablon-bilgi";
+
+  const ad = document.createElement("strong");
+  ad.textContent = sablon.aciklama || turAdi(sablon.tur);
+  bilgi.appendChild(ad);
+
+  const alt = document.createElement("span");
+  alt.textContent = kurusYaz(sablon.kurus) + " · her ayın " + sablon.gun + ". günü";
+  bilgi.appendChild(alt);
+
+  satir.appendChild(bilgi);
+
+  const silDugmesi = document.createElement("button");
+  silDugmesi.type = "button";
+  silDugmesi.className = "sablon-sil";
+  silDugmesi.dataset.id = sablon.id;
+  silDugmesi.setAttribute("aria-label", "Yinelenen işlemi sil");
+  silDugmesi.textContent = "🗑";
+  satir.appendChild(silDugmesi);
+
+  return satir;
+}
+
+function sablonlariCiz() {
+  const liste = bul("sablon-listesi");
+  const sablonlar = sablonlariOku();
+
+  liste.innerHTML = "";
+  if (sablonlar.length === 0) {
+    goster(bul("sablon-bos"));
+    return;
+  }
+
+  gizle(bul("sablon-bos"));
+  for (const sablon of sablonlar) liste.appendChild(sablonSatiriYap(sablon));
+}
+
+bul("sablon-listesi").addEventListener("click", (olay) => {
+  const dugme = olay.target.closest(".sablon-sil");
+  if (!dugme) return;
+
+  const sablon = sablonlariOku().find((s) => s.id === dugme.dataset.id);
+  if (!sablon) return;
+
+  const etiket = sablon.aciklama || turAdi(sablon.tur);
+  // DİKKAT: metnin içinde satır sonundan hemen sonra parantez AÇMIYORUZ.
+  // testler.js "isim(" kalıbıyla fonksiyon çağrısı arıyor; "\n(" dizisi
+  // ona "n(" diye bir çağrı gibi görünüyor ve boş yere hata veriyor.
+  const onay = confirm(
+    `"${etiket}" — ${kurusYaz(sablon.kurus)}\n\nBu yinelenen işlem silinsin mi?\n\nDaha önce eklenmiş kayıtlar silinmez.`
+  );
+  if (!onay) return;
+
+  sablonSil(sablon.id);
+  sablonlariCiz();
+  tekrarlariGoster();
+  bildir("Yinelenen işlem silindi");
+});
+
+// ============================================================
 // EKLEME FORMU
 // ============================================================
 
@@ -371,6 +579,9 @@ function bildir(mesaj) {
 function formuTemizle() {
   bul("alan-tutar").value = "";
   bul("alan-aciklama").value = "";
+  // Tekrar kutusunu MUTLAKA sıfırlıyoruz: işaretli kalsaydı sonraki
+  // kayıt da farkında olmadan yinelenen işleme dönüşürdü.
+  bul("alan-tekrar").checked = false;
   hataGizle();
 }
 
@@ -392,6 +603,22 @@ bul("ekle-formu").addEventListener("submit", (olay) => {
       kategori: bul("alan-kategori").value,
     });
 
+    // "Her ay tekrarlansın" işaretliyse aynı bilgilerden bir de şablon
+    // kuruyoruz. Kaydın kendisi zaten girildi; şablon BUGÜNDEN SONRASI
+    // için — o yüzden başlangıç tarihi bu kaydın tarihi ve ilk tekrar
+    // gelecek ay çıkıyor.
+    const tekrarli = bul("alan-tekrar").checked;
+    if (tekrarli) {
+      sablonEkle({
+        tur: kayit.tur,
+        kurus: kayit.kurus,
+        baslangic: kayit.tarih,
+        aciklama: kayit.aciklama,
+        kategori: kayit.kategori,
+      });
+      sablonlariCiz();
+    }
+
     // Kayıt başka bir aya aitse o aya geç. Yoksa kullanıcı geçen aya
     // bir gider girip Özet'e döndüğünde "kaydettim ama görünmüyor" der.
     secilenAy = {
@@ -402,7 +629,7 @@ bul("ekle-formu").addEventListener("submit", (olay) => {
     formuTemizle();
     sekmeGoster("ozet");
     ozetiYenile();
-    bildir(kurusYaz(kayit.kurus) + " kaydedildi ✓");
+    bildir(kurusYaz(kayit.kurus) + " kaydedildi ✓" + (tekrarli ? " · her ay tekrarlanacak" : ""));
   } catch (hata) {
     hataGoster(hata.message);
   }
@@ -472,10 +699,14 @@ bul("yedek-dosya").addEventListener("change", () => {
 
 kategorileriDoldur();
 butceFormunuDoldur();
+sablonlariCiz();
 bul("alan-tarih").value = bugununTarihi(); // tarih varsayılan olarak bugün
 kategoriKutusunuGuncelle();
 sekmeGoster("ozet");
 ozetiYenile();
+// Panel EN SON çiziliyor: ozetiYenile'den sonra çağırıyoruz ki sıra
+// karışıp da az önce onaylanmış bir kayıt eksik görünmesin.
+tekrarlariGoster();
 
 // ============================================================
 // SERVICE WORKER — çevrimdışı çalışma

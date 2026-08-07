@@ -169,6 +169,144 @@ button {
 }
 
 /* ============================================================
+   ÖZET — "zamanı gelenler" paneli (yinelenen işlemler)
+   ============================================================
+   Yeni renk YOK: panel mevcut vurgu ailesinden besleniyor.
+   Solgun yeşil zemin + vurgu rengi kenarlık, "dikkat çeksin ama
+   bağırmasın" dengesi için. */
+
+.tekrar-kutusu {
+  background: var(--vurgu-solgun);
+  border: 1px solid var(--vurgu);
+  border-radius: var(--yuvarlak);
+  padding: 14px;
+  margin-bottom: 16px;
+}
+
+.tekrar-baslik {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--vurgu-koyu);
+  margin: 0 0 4px;
+}
+
+.tekrar-aciklama {
+  font-size: 13px;
+  color: var(--yazi-soluk);
+  margin: 0 0 12px;
+}
+
+.tekrar-listesi {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tekrar-satir {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--kart);
+  border: 1px solid var(--kenar);
+  border-radius: var(--yuvarlak);
+  padding: 10px;
+}
+
+/* Ad üstte tam satır, tarih ve tutar altta yan yana.
+   flex-wrap + %100 taban: ayrı bir sarmalayıcı div gerekmiyor. */
+.tekrar-bilgi {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 1px 8px;
+}
+
+.tekrar-bilgi strong {
+  flex: 1 0 100%;
+  font-size: 14px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tekrar-tarih {
+  font-size: 12px;
+  color: var(--yazi-cok-soluk);
+}
+
+.tekrar-tutar {
+  font-size: 13px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* İki düğme de en az 40px: parmakla basılacak ölçü.
+   Ekle vurgulu (asıl istenen iş), Atla soluk. */
+.tekrar-ekle,
+.tekrar-atla {
+  min-width: 52px;
+  min-height: 40px;
+  flex-shrink: 0;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: 10px;
+  padding: 0 10px;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+
+.tekrar-ekle {
+  color: var(--kart);
+  background: var(--vurgu);
+  border: 1px solid var(--vurgu);
+}
+
+.tekrar-ekle:active {
+  background: var(--vurgu-koyu);
+}
+
+.tekrar-atla {
+  color: var(--yazi-soluk);
+  background: var(--kart);
+  border: 1px solid var(--kenar);
+}
+
+.tekrar-atla:active {
+  background: var(--bastirilmis);
+}
+
+.tekrar-toplu {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.tekrar-toplu-dugme {
+  min-height: 40px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--yazi-soluk);
+  background: var(--kart);
+  border: 1px solid var(--kenar);
+  border-radius: var(--yuvarlak);
+  padding: 10px 0;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+
+.tekrar-toplu-dugme:active {
+  background: var(--bastirilmis);
+}
+
+/* ============================================================
    ÖZET — ay gezinme çubuğu
    ============================================================ */
 
@@ -492,6 +630,78 @@ button {
 }
 
 /* ============================================================
+   RAPOR — yinelenen işlem listesi
+   ============================================================ */
+
+.sablon-listesi {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sablon-satir {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--kart);
+  border: 1px solid var(--kenar);
+  border-radius: var(--yuvarlak);
+  padding: 10px 6px 10px 14px;
+}
+
+.sablon-bilgi {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.sablon-bilgi strong {
+  font-size: 14px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sablon-bilgi span {
+  font-size: 12px;
+  color: var(--yazi-cok-soluk);
+  font-variant-numeric: tabular-nums;
+}
+
+.sablon-sil {
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  font-size: 15px;
+  line-height: 1;
+  background: none;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  /* Kayıt listesindeki çöp kutusuyla aynı davranış: soluk dursun,
+     yanlışlıkla basılmasın. */
+  opacity: 0.4;
+  transition: opacity 0.12s, background 0.12s;
+}
+
+.sablon-sil:active {
+  background: var(--hata-zemin);
+  opacity: 1;
+}
+
+.sablon-bos {
+  font-size: 13px;
+  color: var(--yazi-cok-soluk);
+  margin: 0;
+}
+
+/* ============================================================
    ÖZET — yedekleme
    ============================================================ */
 
@@ -649,6 +859,42 @@ button {
   outline: none;
   border-color: var(--vurgu);
   box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.15);
+}
+
+/* Onay kutulu alan ("Her ay tekrarlansın").
+   Etiket ve kutu yan yana, dikeyde ortalı. */
+.onay-alan {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  /* Dokunma alanı: kutucuk küçük ama etiketin tamamı tıklanabilir
+     (<label> içindeler), yükseklikle bunu 40px'e çıkarıyoruz. */
+  min-height: 40px;
+}
+
+/* ŞART: yukarıdaki ".alan input { width: 100% }" kuralı bu kutucuğu
+   ekran boyunca yayardı — onay kutusu genişleyince dev bir kare olur,
+   yanındaki yazı alt satıra düşerdi. Aynı ağırlıkta bir seçici olduğu
+   için SONRA yazılmış olması kazanmasını sağlıyor. */
+.onay-alan input {
+  width: auto;
+  /* Küçük kalmasın: parmakla işaretlenebilsin. */
+  min-width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  /* .alan input'tan gelen 13px iç boşluk kutucuğu şişirirdi. */
+  padding: 0;
+  border-radius: 6px;
+  /* accent-color: işaretliyken kutunun dolgu rengi. Tek satırla
+     tarayıcının kendi çizimini uygulamanın rengine boyuyoruz —
+     kutuyu sıfırdan çizmek (appearance: none) gerekmiyor. */
+  accent-color: var(--vurgu);
+}
+
+.onay-yazi {
+  font-size: 14px;
+  color: var(--yazi);
+  user-select: none;
 }
 
 .kaydet {

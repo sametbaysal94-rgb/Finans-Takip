@@ -37,6 +37,27 @@
     <!-- ======================= ÖZET SEKMESİ ======================= -->
     <section id="sayfa-ozet" class="sayfa">
 
+      <!-- Zamanı gelen yinelenen işlemler. Özet'in EN ÜSTÜNDE duruyor:
+           uygulamayı açtığında ilk göreceğin şey "şunları onaylar mısın?"
+           olsun. Bekleyen yoksa app.js bu bölümü tümden gizliyor.
+
+           Modal (ekranı kaplayan pencere) DEĞİL, panel: modal kapatılana
+           kadar başka hiçbir şeye dokunulamaz, odak tuzağı yazmak gerekir
+           ve telefonda geri tuşuyla kavga eder. Panel ise kenara çekilip
+           işine bakabileceğin bir hatırlatma. -->
+      <section id="tekrar-kutusu" class="tekrar-kutusu gizli">
+        <h2 class="tekrar-baslik">Zamanı gelenler</h2>
+        <p class="tekrar-aciklama">
+          Bu kayıtların zamanı geldi. Gerçekleşenleri ekle, olmayanları atla.
+        </p>
+        <!-- Satırlar app.js tarafından üretiliyor. -->
+        <ul id="tekrar-listesi" class="tekrar-listesi"></ul>
+        <div class="tekrar-toplu">
+          <button type="button" id="tekrar-hepsi-ekle" class="tekrar-toplu-dugme">Hepsini ekle</button>
+          <button type="button" id="tekrar-hepsi-atla" class="tekrar-toplu-dugme">Hepsini atla</button>
+        </div>
+      </section>
+
       <!-- Tüm zamanların toplamı. Ay seçiminden bağımsız. -->
       <div class="varlik">
         <span class="varlik-etiket">Toplam varlık</span>
@@ -160,6 +181,15 @@
                  autocomplete="off" placeholder="örn. Market alışverişi">
         </label>
 
+        <!-- Yinelenen işlem, AYRI bir form değil: kaydı normal girersin,
+             bu kutuyu işaretlersen aynı işlem her ay "zamanı gelenler"
+             panelinde karşına çıkar. İki ayrı form olsaydı aynı bilgiyi
+             iki kez yazmak gerekirdi. -->
+        <label class="alan onay-alan">
+          <input id="alan-tekrar" type="checkbox">
+          <span class="onay-yazi">Her ay tekrarlansın (kira, maaş, abonelik)</span>
+        </label>
+
         <p id="form-hata" class="hata gizli"></p>
 
         <button type="submit" class="kaydet">Kaydet</button>
@@ -180,6 +210,22 @@
           gösterilir. Limiti silmek için kutuyu boşalt.
         </p>
         <div id="butce-formu" class="butce-formu"></div>
+      </section>
+
+      <!-- Yinelenen işlemler listesi. Satırlar app.js tarafından
+           şablonlardan üretiliyor. -->
+      <section class="ayar">
+        <h2 class="ayar-baslik">Yinelenen işlemler</h2>
+        <p class="ayar-aciklama">
+          Her ay tekrarlayan kira, maaş, abonelik gibi işlemler. Uygulama
+          bunları kendiliğinden EKLEMEZ: zamanı gelince Özet sekmesinin
+          üstünde bir panelde çıkar, sen onaylarsın ya da atlarsın.
+        </p>
+        <ul id="sablon-listesi" class="sablon-listesi"></ul>
+        <p id="sablon-bos" class="sablon-bos">
+          Henüz yinelenen işlem yok. Ekle formundaki "Her ay tekrarlansın"
+          kutusuyla oluşturabilirsin.
+        </p>
       </section>
 
     </section>

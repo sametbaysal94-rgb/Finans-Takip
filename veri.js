@@ -155,6 +155,33 @@ function ayniAy(a, b) {
   return a.yil === b.yil && a.ay === b.ay;
 }
 
+// Bir ayın kaç gün sürdüğünü verir. ayinGunSayisi(2026, 2) -> 28
+//
+// Buradaki numara: Date'e ayın SIFIRINCI gününü sorarsan, sana bir
+// önceki ayın SON gününü verir. Date ayları 0'dan saydığı için bizim
+// "ay" değerimiz (1-12) onun gözünde zaten bir sonraki aydır — yani
+// (yil, ay, 0) tam olarak "bizim ayımızın son günü" demek oluyor.
+//
+// Artık yıl kuralını (4'e bölünen ama 100'e bölünüp 400'e bölünmeyen
+// hariç) kendimiz yazmıyoruz: takvimi tarayıcı zaten biliyor.
+function ayinGunSayisi(yil, ay) {
+  return new Date(yil, ay, 0).getDate();
+}
+
+// Yıl / ay / günden "YYYY-MM-DD" metni kurar. Gün, o ayın son gününü
+// aşıyorsa oraya KİLİTLENİR:  tarihKur(2026, 2, 31) -> "2026-02-28"
+//
+// DİKKAT: kilitlemeseydik ne olurdu? new Date(2026, 1, 31) hata vermez,
+// sessizce 3 Mart'a taşar (JavaScript taşan tarihleri ileri kaydırır).
+// Yani "her ayın 31'inde" diye kurduğun bir kira ödemesi Şubat'ta
+// Mart'a atlar, sonra da yanlış aya yazılırdı.
+function tarihKur(yil, ay, gun) {
+  const sonGun = ayinGunSayisi(yil, ay);
+  // Math.min: ikisinden küçüğünü seçer. 31 istendi ama ay 28 çekiyorsa 28.
+  const guvenliGun = Math.min(gun, sonGun);
+  return `${yil}-${String(ay).padStart(2, "0")}-${String(guvenliGun).padStart(2, "0")}`;
+}
+
 const GUN_BICIMI = new Intl.DateTimeFormat("tr-TR", {
   day: "numeric",
   month: "long",
@@ -311,28 +338,38 @@ function yeniId() {
   return "k" + Date.now() + Math.random().toString(16).slice(2, 8);
 }
 
-// Yeni kayıt ekler ve eklenen kaydı döner.
-// Beklenen: kayitEkle({ tur, tutar, tarih, aciklama, kategori })
-//   tur       : "gelir" | "gider" | "yatirim"   (zorunlu)
-//   tutar     : 1500 veya "1.500,50"            (zorunlu, sıfırdan büyük)
-//   tarih     : "2026-08-06"                    (boş bırakılırsa bugün)
-//   aciklama  : "Maaş"                          (isteğe bağlı)
-//   kategori  : "Market"                        (sadece gider için)
+// Bir kayıt adayını DENETLER ve temiz hâlini döner:
+//   { tur, kurus, tarih, aciklama, kategori }
 //
-// Hatalı veri gelirse throw ile duruyoruz. Böylece bozuk kayıt hiç
-// depoya girmiyor — sessizce yanlış veri saklamaktan iyidir.
+// Depoya dokunmaz, kimlik üretmez, hiçbir şey kaydetmez — tek işi
+// "bu veri sağlam mı?" sorusunu cevaplamak. Bozuksa throw ile durur.
 //
-// Doğrulama kuralları SADECE burada. Form da, konsol da, ileride
-// ekleyeceğimiz başka bir şey de aynı kapıdan geçiyor.
-function kayitEkle(yeni) {
+// NEDEN AYRI BİR FONKSİYON: aynı kuralları hem kayitEkle hem sablonEkle
+// kullanıyor. Kural iki yere kopyalansaydı biri güncellenip öteki
+// unutulurdu; kayıtta reddedilen bir tutar şablonda kabul görürdü.
+// Doğrulama kuralları SADECE burada. Form da, konsol da, şablon da
+// aynı kapıdan geçiyor.
+function kaydiDenetle(yeni) {
   const tur = yeni.tur;
   if (!TURLER.includes(tur)) {
     throw new Error(`Geçersiz tür: "${tur}". Şunlardan biri olmalı: ${TURLER.join(", ")}`);
   }
 
-  const kurus = tlToKurus(yeni.tutar);
+  // Tutar iki yoldan gelebiliyor:
+  //   kurus: 125050        -> zaten kuruş, olduğu gibi alınır
+  //   tutar: "1.250,50"    -> kullanıcının yazdığı metin, çevrilir
+  //
+  // DİKKAT: kuruş yolu şablondan kayıt üretirken lazım. Olmasaydı
+  // şablondaki 125050'yi önce "1.250,50" metnine çevirip sonra geri
+  // okumak gerekirdi — her turda yuvarlama riski taşıyan gereksiz bir
+  // gidiş-dönüş. Number.isInteger ile "kuruş verilmiş mi" diye bakıyoruz;
+  // 0 da tam sayıdır, o yüzden aşağıdaki sıfır denetimi yine çalışıyor.
+  const kurusVerildi = Number.isInteger(yeni.kurus);
+  const kurus = kurusVerildi ? yeni.kurus : tlToKurus(yeni.tutar);
   if (!Number.isFinite(kurus) || kurus <= 0) {
-    throw new Error(`Geçersiz tutar: "${yeni.tutar}". Sıfırdan büyük bir sayı olmalı.`);
+    throw new Error(
+      `Geçersiz tutar: "${kurusVerildi ? yeni.kurus : yeni.tutar}". Sıfırdan büyük bir sayı olmalı.`
+    );
   }
 
   const tarih = yeni.tarih ? String(yeni.tarih) : bugununTarihi();
@@ -350,13 +387,43 @@ function kayitEkle(yeni) {
     }
   }
 
-  const kayit = {
-    id: yeniId(),
+  return {
     tur: tur,
     kurus: kurus,
     tarih: tarih,
     aciklama: String(yeni.aciklama || "").trim(),
     kategori: kategori,
+  };
+}
+
+// Yeni kayıt ekler ve eklenen kaydı döner.
+// Beklenen: kayitEkle({ tur, tutar, tarih, aciklama, kategori, sablonId })
+//   tur       : "gelir" | "gider" | "yatirim"   (zorunlu)
+//   tutar     : 1500 veya "1.500,50"            (zorunlu, sıfırdan büyük)
+//               — ya da doğrudan kurus: 150000
+//   tarih     : "2026-08-06"                    (boş bırakılırsa bugün)
+//   aciklama  : "Maaş"                          (isteğe bağlı)
+//   kategori  : "Market"                        (sadece gider için)
+//   sablonId  : "abc-123"                       (yinelenen bir işlemden
+//               üretildiyse hangi şablondan geldiği; yoksa boş)
+//
+// Hatalı veri gelirse (kaydiDenetle sayesinde) throw ile duruyoruz.
+// Böylece bozuk kayıt hiç depoya girmiyor — sessizce yanlış veri
+// saklamaktan iyidir.
+function kayitEkle(yeni) {
+  const temiz = kaydiDenetle(yeni);
+
+  const kayit = {
+    id: yeniId(),
+    tur: temiz.tur,
+    kurus: temiz.kurus,
+    tarih: temiz.tarih,
+    aciklama: temiz.aciklama,
+    kategori: temiz.kategori,
+    // Bu kayıt bir şablondan mı doğdu? Elle girilen kayıtlarda boş kalır.
+    // İleride "bu kira ödemesi hangi yinelenen işlemden geldi?" sorusunun
+    // cevabı bu alan olacak.
+    sablonId: typeof yeni.sablonId === "string" ? yeni.sablonId : "",
   };
 
   const kayitlar = kayitlariOku();
@@ -562,6 +629,285 @@ function butceleriDenetle(ham) {
 }
 
 // ============================================================
+// YİNELENEN İŞLEMLER (ŞABLONLAR)
+// ============================================================
+//
+// Kira, maaş, abonelik... her ay aynı gün tekrarlayan işlemler.
+// Depoda bir "şablon" olarak duruyorlar:
+//
+//   { id, tur, kurus, gun, aciklama, kategori,
+//     siklik: "aylik", sonUretim: "2026-07-05" }
+//
+// TASARIM KARARI — arka planda kimse kayıt üretmiyor.
+// Uygulama açıldığında "zamanı gelenler" listesi HESAPLANIR ve sana
+// onayla/atla diye sorulur. Neden: bir tarayıcı uygulaması kapalıyken
+// çalışamaz; "otomatik ekledim" desek, üç ay açmadığın uygulama bir
+// gün açılınca sana sormadan 3 kira gideri yazardı. Onaylamak senin işin.
+//
+// sonUretim = en son ÜRETİLEN ya da ATLANAN tekrarın tarihi. Tek
+// idempotens (aynı işi iki kez yapmama) mekanizması budur: hem onay
+// hem atlama bu tarihi ilerlettiği için aynı ay iki kez üretilemez.
+// "Bekleyenler" hiçbir yerde SAKLANMAZ, her seferinde sonUretim'den
+// yeniden hesaplanır — saklansaydı iki liste birbirini tutmayabilirdi.
+
+// Bir şablon için tek seferde en fazla kaç tekrar üretilebilir?
+//
+// DİKKAT: bu bir güvenlik freni. Şablonun sonUretim'i bir şekilde
+// "1999-01-01" olursa (bozuk yedek, elle düzenleme) döngü 300'den fazla
+// satır üretip ekranı kilitlerdi. 24 = iki yıl; bundan eskisi zaten
+// onaylanacak bir şey değil.
+const TEKRAR_AZAMI = 24;
+
+// Bir tekrardan sonrakinin tarihini verir.
+//
+// DİKKAT — KAYMA TUZAĞI: günü ÖNCEKİ tarihten değil, şablonun `gun`
+// alanından alıyoruz. Kolay görünen yol "önceki tarihe bir ay ekle"
+// idi ama şu zinciri üretirdi:
+//     31 Ocak -> 28 Şubat -> 28 Mart -> 28 Nisan...
+// Kira her ayın 31'inde olmasına rağmen ayın 28'ine yapışıp kalırdı.
+// Doğrusu her ay şablonun gününe geri dönüp o ayın sonuna göre
+// kilitlemek:
+//     31 Ocak -> 28 Şubat -> 31 Mart -> 30 Nisan -> 31 Mayıs...
+function sonrakiTekrar(tarih, gun) {
+  const yil = Number(String(tarih).slice(0, 4));
+  const ay = Number(String(tarih).slice(5, 7));
+  // Yıl devrini ayKaydir hallediyor: Aralık +1 -> gelecek yılın Ocak'ı.
+  const sonraki = ayKaydir(yil, ay, 1);
+  return tarihKur(sonraki.yil, sonraki.ay, gun);
+}
+
+// Depodaki şablon listesi. Hiç yoksa boş dizi döner.
+function sablonlariOku() {
+  return depoOku().sablonlar;
+}
+
+// Yeni bir yinelenen işlem kurar ve şablonu döner.
+// Beklenen: sablonEkle({ tur, tutar, baslangic, aciklama, kategori })
+//   baslangic : "2026-08-05" — hem ayın kaçında tekrarlanacağını
+//               (gun = 5) hem de sayacın nereden başlayacağını
+//               (sonUretim) belirler.
+//
+// Doğrulamayı kendisi yazmıyor, kaydiDenetle'ye soruyor: bir kayıt
+// olarak geçerli olmayan şey şablon olarak da geçerli değil.
+function sablonEkle(yeni) {
+  const temiz = kaydiDenetle({
+    tur: yeni.tur,
+    tutar: yeni.tutar,
+    kurus: yeni.kurus,
+    tarih: yeni.baslangic,
+    aciklama: yeni.aciklama,
+    kategori: yeni.kategori,
+  });
+
+  // Ayın kaçında tekrarlanacak? Başlangıç tarihinin gün kısmı.
+  // slice(8, 10): "2026-08-05" metninin son iki hanesi -> "05" -> 5
+  const gun = Number(temiz.tarih.slice(8, 10));
+  if (!Number.isInteger(gun) || gun < 1 || gun > 31) {
+    throw new Error(`Geçersiz gün: "${temiz.tarih}" tarihinden ayın günü okunamadı.`);
+  }
+
+  const sablon = {
+    id: yeniId(),
+    tur: temiz.tur,
+    kurus: temiz.kurus,
+    gun: gun,
+    aciklama: temiz.aciklama,
+    kategori: temiz.kategori,
+    // Şimdilik tek sıklık var. Alanı yine de yazıyoruz: ileride
+    // "haftalik" eklenirse eski şablonların ne olduğu belli olsun.
+    siklik: "aylik",
+    // İlk tekrar bir SONRAKİ ay çıksın diye başlangıcı "üretilmiş" sayıyoruz;
+    // bugünkü kaydı zaten formdan kendin girdin.
+    sonUretim: temiz.tarih,
+  };
+
+  // Oku-değiştir-yaz: doğrudan yeni depo yazsaydık kayıtlar silinirdi.
+  const depo = depoOku();
+  depo.sablonlar.push(sablon);
+  depoYaz(depo);
+  return sablon;
+}
+
+// Şablonu siler. Sildiyse true, bulamadıysa false döner.
+// Şablondan daha önce üretilmiş KAYITLAR silinmez — onlar gerçekten
+// olmuş harcamalar; şablonun silinmesi sadece "bundan sonra sorma" demek.
+function sablonSil(id) {
+  const depo = depoOku();
+  const kalanlar = depo.sablonlar.filter((s) => s.id !== id);
+  if (kalanlar.length === depo.sablonlar.length) return false;
+
+  depo.sablonlar = kalanlar;
+  depoYaz(depo);
+  return true;
+}
+
+// Zamanı gelmiş ama henüz onaylanmamış/atlanmamış tekrarların listesi.
+//
+// SAF fonksiyondur: depoya dokunmaz, hiçbir şey kaydetmez, verilen
+// şablon listesiyle ve verilen "bugün" ile hesaplar. Bu yüzden Node'da
+// istediğimiz tarihi vererek test edebiliyoruz.
+//
+// Dönen her satır:
+//   { sablonId, tur, kurus, tarih, aciklama, kategori }
+//
+// DİKKAT: tarihleri metin olarak `<=` ile karşılaştırıyoruz. Bu, sadece
+// "YYYY-MM-DD" biçiminde doğru çalışır — çünkü o biçimde alfabetik sıra
+// ile takvim sırası aynıdır ("2026-09-01" > "2026-08-31"). "01.09.2026"
+// gibi bir biçimde bu numara çöker.
+function bekleyenTekrarlar(sablonlar, bugun) {
+  const bekleyen = [];
+  if (!Array.isArray(sablonlar)) return bekleyen;
+
+  for (const sablon of sablonlar) {
+    // Bozuk bir şablon yüzünden uygulama açılmamazlık etmesin: burada
+    // asla fırlatmıyoruz, tanımadığımızı sessizce atlıyoruz.
+    if (!sablon || typeof sablon !== "object") continue;
+    if (typeof sablon.sonUretim !== "string") continue;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(sablon.sonUretim)) continue;
+    if (!Number.isInteger(sablon.gun) || sablon.gun < 1 || sablon.gun > 31) continue;
+
+    let tarih = sonrakiTekrar(sablon.sonUretim, sablon.gun);
+    let sayac = 0;
+    while (tarih <= bugun && sayac < TEKRAR_AZAMI) {
+      bekleyen.push({
+        sablonId: sablon.id,
+        tur: sablon.tur,
+        kurus: sablon.kurus,
+        tarih: tarih,
+        aciklama: sablon.aciklama,
+        kategori: sablon.kategori,
+      });
+      sayac++;
+      tarih = sonrakiTekrar(tarih, sablon.gun);
+    }
+  }
+
+  // Eskiden yeniye sıralıyoruz. Sadece görüntü için değil: "hepsini
+  // ekle" düğmesi listeyi baştan sona işliyor ve her onay sonUretim'i
+  // ilerletiyor — sıra karışık olsaydı ileri bir tarih onaylandığında
+  // arkada kalanlar kaybolurdu.
+  bekleyen.sort((a, b) => (a.tarih < b.tarih ? -1 : a.tarih > b.tarih ? 1 : 0));
+  return bekleyen;
+}
+
+// Bekleyen bir tekrarı ONAYLAR: gerçek kaydı üretir ve şablonun
+// sayacını (sonUretim) o tarihe ilerletir. Üretilen kaydı döner.
+// Böyle bir şablon yoksa null döner (arayüz bunu sessizce yutabilir).
+function tekrarOnayla(sablonId, tarih) {
+  const sablon = depoOku().sablonlar.find((s) => s && s.id === sablonId);
+  if (!sablon) return null;
+
+  let kayit;
+  try {
+    kayit = kayitEkle({
+      tur: sablon.tur,
+      kurus: sablon.kurus, // TL metnine çevirip geri okumuyoruz
+      tarih: tarih,
+      aciklama: sablon.aciklama,
+      kategori: sablon.kategori,
+      sablonId: sablon.id,
+    });
+  } catch (hata) {
+    // Buraya en çok şu yüzden düşeriz: şablon eski bir kategoriyle
+    // kurulmuş, o kategori sonradan listeden çıkmış. Sessizce yutmak
+    // en kötüsü olurdu — kullanıcı "ekle" der, hiçbir şey olmaz.
+    throw new Error(
+      `Şablonun kategorisi artık yok ya da bilgileri bozuk. Rapor sekmesinden bu yinelenen işlemi silip yeniden oluştur. (${hata.message})`
+    );
+  }
+
+  // DİKKAT: depoyu BURADA yeniden okuyoruz. Yukarıda okuduğumuz kopyayı
+  // yazsaydık kayitEkle'nin az önce eklediği kayıt üzerine yazılır ve
+  // yeni kayıt kaybolurdu (klasik "bayat kopya" tuzağı).
+  const depo = depoOku();
+  const hedef = depo.sablonlar.find((s) => s && s.id === sablonId);
+  if (hedef) {
+    hedef.sonUretim = tarih;
+    depoYaz(depo);
+  }
+
+  return kayit;
+}
+
+// Bekleyen bir tekrarı ATLAR: kayıt üretmez ama sayacı yine ilerletir.
+// "Bu ay bu ödeme olmadı" durumunun cevabı bu — ilerletmeseydik aynı
+// satır her açılışta karşımıza çıkardı.
+function tekrarAtla(sablonId, tarih) {
+  if (typeof tarih !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(tarih)) {
+    throw new Error(`Geçersiz tarih: "${tarih}". Biçim 2026-08-06 gibi olmalı.`);
+  }
+
+  const depo = depoOku();
+  const sablon = depo.sablonlar.find((s) => s && s.id === sablonId);
+  if (!sablon) return false;
+
+  sablon.sonUretim = tarih;
+  depoYaz(depo);
+  return true;
+}
+
+// Yedekten gelen şablon bölümünü denetler, temizini döner.
+// - bölüm hiç yoksa (eski yedek) -> boş dizi
+// - bozuk şablon -> HATA
+//
+// Neden bütçelerdeki gibi "sessizce atla" değil de sert ret: bozuk bir
+// şablon her ay yanlış tutarda kayıt üretmeye aday. Bir kere göz ardı
+// edilen hata aylarca sessizce yanlış veri üretirdi.
+function sablonlariDenetle(ham) {
+  if (ham === undefined || ham === null) return [];
+  if (!Array.isArray(ham)) {
+    throw new Error("Yedekteki yinelenen işlem bölümü bozuk: liste olmalı.");
+  }
+
+  return ham.map((s, sira) => {
+    const yer = `Yedekteki ${sira + 1}. yinelenen işlem`;
+    if (typeof s !== "object" || s === null) {
+      throw new Error(`${yer} bozuk: bu bir şablon değil.`);
+    }
+    if (typeof s.id !== "string" || s.id === "") {
+      throw new Error(`${yer} bozuk: kimlik (id) eksik.`);
+    }
+    if (!TURLER.includes(s.tur)) {
+      throw new Error(`${yer} bozuk: tür "${s.tur}" tanınmadı.`);
+    }
+    if (!Number.isInteger(s.kurus) || s.kurus <= 0) {
+      throw new Error(`${yer} bozuk: tutar (kurus) pozitif tam sayı olmalı.`);
+    }
+    if (!Number.isInteger(s.gun) || s.gun < 1 || s.gun > 31) {
+      throw new Error(`${yer} bozuk: ayın günü 1-31 arası bir tam sayı olmalı.`);
+    }
+    if (s.siklik !== "aylik") {
+      throw new Error(`${yer} bozuk: sıklık "${s.siklik}" tanınmadı (şimdilik yalnız "aylik").`);
+    }
+    if (typeof s.sonUretim !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(s.sonUretim)) {
+      throw new Error(`${yer} bozuk: sonUretim "${s.sonUretim}" beklenen biçimde değil.`);
+    }
+
+    // Kategori kuralı kayıtlardaki gibi: yalnız giderde anlamlı ve
+    // tanınan bir kategori olmalı. Tanınmayan kategoriyle geri yüklenen
+    // bir şablon, her onayda hata verecek ölü bir şablon olurdu.
+    let kategori = "";
+    if (s.tur === "gider") {
+      kategori = typeof s.kategori === "string" ? s.kategori : "";
+      if (!KATEGORILER.includes(kategori)) {
+        throw new Error(`${yer} bozuk: kategori "${s.kategori}" tanınmadı.`);
+      }
+    }
+
+    return {
+      id: s.id,
+      tur: s.tur,
+      kurus: s.kurus,
+      gun: s.gun,
+      aciklama: typeof s.aciklama === "string" ? s.aciklama : "",
+      kategori: kategori,
+      siklik: "aylik",
+      sonUretim: s.sonUretim,
+    };
+  });
+}
+
+// ============================================================
 // YEDEKLEME
 // ============================================================
 //
@@ -584,6 +930,7 @@ function yedekMetni() {
       olusturma: bugununTarihi(),
       kayitlar: depo.kayitlar,
       butceler: depo.butceler,
+      sablonlar: depo.sablonlar,
     },
     null,
     2
@@ -657,16 +1004,22 @@ function yedekOku(metin) {
       tarih: k.tarih,
       aciklama: typeof k.aciklama === "string" ? k.aciklama : "",
       kategori: typeof k.kategori === "string" ? k.kategori : "",
+      // Hangi yinelenen işlemden doğduğu. Eski yedeklerde bu alan yok,
+      // boşla tamamlanıyor. Buraya YAZILMASAYDI bir yedek turundan sonra
+      // kayıt-şablon bağı sessizce kopardı.
+      sablonId: typeof k.sablonId === "string" ? k.sablonId : "",
     };
   });
 
   // Temiz parçaları tam bir depo iskeletine koyup dönüyoruz: arayüz
   // onaylarsa bu nesne olduğu gibi depoYaz'a verilebilir.
-  // (Eski biçim çıplak listeydi; onda bütçe bölümü yok, boş kalır.)
+  // (Eski biçim çıplak listeydi; onda bütçe ve şablon bölümü yok,
+  //  boş kalırlar.)
   const depo = bosDepo();
   depo.kayitlar = kayitlar;
   if (!Array.isArray(veri)) {
     depo.butceler = butceleriDenetle(veri.butceler);
+    depo.sablonlar = sablonlariDenetle(veri.sablonlar);
   }
   return depo;
 }
@@ -710,12 +1063,24 @@ if (typeof module !== "undefined" && module.exports) {
     ayAdi,
     ayKaydir,
     ayniAy,
+    ayinGunSayisi,
+    tarihKur,
     tarihYaz,
     turAdi,
     kayitlariOku,
     kayitlariYaz,
+    kaydiDenetle,
     kayitEkle,
     kayitSil,
+    TEKRAR_AZAMI,
+    sonrakiTekrar,
+    sablonlariOku,
+    sablonEkle,
+    sablonSil,
+    bekleyenTekrarlar,
+    tekrarOnayla,
+    tekrarAtla,
+    sablonlariDenetle,
     yedekMetni,
     yedekOku,
     ayKayitlari,
