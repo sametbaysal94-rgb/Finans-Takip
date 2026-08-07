@@ -442,6 +442,126 @@ function yeniyeGoreSirala(kayitlar) {
 }
 
 // ============================================================
+// BÜTÇELER
+// ============================================================
+//
+// Bütçe = bir gider kategorisine koyduğun AYLIK harcama limiti.
+// Depoda şöyle durur:  butceler: { "Market": 500000, "Kira": 1500000 }
+// (değerler kuruş; yalnızca limit konan kategoriler listede).
+// Limit her ay için aynıdır — "Ekim'e özel limit" diye bir şey yok,
+// basit kalsın diye bilerek böyle.
+
+// Limitin bu oranı aşılınca çubuk "uyarı" rengine döner.
+const UYARI_ORANI = 0.8;
+
+// Bir bütçenin olabileceği üç durum. Testler ve CSS sınıfları
+// (butce-iyi, butce-uyari, butce-asildi) bu listeden türetiliyor.
+const BUTCE_DURUMLARI = ["iyi", "uyari", "asildi"];
+
+function butceleriOku() {
+  return depoOku().butceler;
+}
+
+// Bir kategoriye limit koyar, günceller ya da siler.
+// Boş yazı veya 0 -> limit silinir (0 döner). Yoksa kuruş döner.
+function butceBelirle(kategori, tutar) {
+  if (!KATEGORILER.includes(kategori)) {
+    throw new Error(`Geçersiz kategori: "${kategori}".`);
+  }
+
+  const metin = String(tutar === undefined || tutar === null ? "" : tutar).trim();
+  const depo = depoOku();
+
+  if (metin === "") {
+    delete depo.butceler[kategori];
+    depoYaz(depo);
+    return 0;
+  }
+
+  const kurus = tlToKurus(metin);
+  if (!Number.isFinite(kurus) || kurus < 0) {
+    throw new Error(`Geçersiz limit: "${tutar}". Bir tutar yaz ya da silmek için boş bırak.`);
+  }
+  if (kurus === 0) {
+    delete depo.butceler[kategori];
+    depoYaz(depo);
+    return 0;
+  }
+
+  depo.butceler[kategori] = kurus;
+  depoYaz(depo);
+  return kurus;
+}
+
+// Harcama, limitin neresinde? "iyi" | "uyari" | "asildi"
+// Limitin TAMAMINI harcamak henüz aşmak değildir: 1000/1000 "uyari",
+// 1001/1000 "asildi".
+function butceDurumAdi(harcanan, limit) {
+  if (harcanan > limit) return "asildi";
+  if (harcanan >= limit * UYARI_ORANI) return "uyari";
+  return "iyi";
+}
+
+// Bir ayın bütçe tablosu. SAF fonksiyondur: depoya dokunmaz, verilenle
+// hesaplar — o yüzden Node'da rahatça test edilebiliyor.
+//
+// Dönen her satır: { kategori, limit, harcanan, kalan, yuzde, durum }
+// - KATEGORILER sırasıyla döner (ekranda sıra hep aynı kalsın).
+// - Limiti olmayan (veya bozuk/bayat anahtarlı) kategoriler atlanır.
+// - yuzde TAM SAYI (63 gibi): ondalık yüzde ekranda gürültü, testte
+//   kırılganlık demek. 100'ü aşabilir (125 = %25 aşım) — kırpma işi
+//   çubuğu çizenin.
+function butceDurumu(kayitlar, butceler, yil, ay) {
+  const ayinKayitlari = ayKayitlari(kayitlar, yil, ay);
+  const sonuc = [];
+
+  for (const kategori of KATEGORILER) {
+    const limit = butceler[kategori];
+    if (!Number.isInteger(limit) || limit <= 0) continue;
+
+    const harcanan = ayinKayitlari.reduce(
+      (toplam, k) => (k.tur === "gider" && k.kategori === kategori ? toplam + k.kurus : toplam),
+      0
+    );
+
+    sonuc.push({
+      kategori: kategori,
+      limit: limit,
+      harcanan: harcanan,
+      kalan: limit - harcanan,
+      yuzde: Math.round((harcanan / limit) * 100),
+      durum: butceDurumAdi(harcanan, limit),
+    });
+  }
+
+  return sonuc;
+}
+
+// Yedekten gelen bütçe bölümünü denetler, temizini döner.
+// - bölüm hiç yoksa (eski yedek) -> boş nesne
+// - tanınmayan kategori -> SESSİZCE atlanır (bayat bir anahtar yüzünden
+//   koca yedek reddedilmesin)
+// - bozuk limit -> HATA (yanlış limit yanlış uyarı üretir; bu, açıklama
+//   gibi "süs" değil, hesaba giren veri)
+function butceleriDenetle(ham) {
+  if (ham === undefined || ham === null) return {};
+  if (typeof ham !== "object" || Array.isArray(ham)) {
+    throw new Error("Yedekteki bütçe bölümü bozuk: liste değil nesne olmalı.");
+  }
+
+  const temiz = {};
+  for (const kategori of Object.keys(ham)) {
+    if (!KATEGORILER.includes(kategori)) continue;
+    const kurus = ham[kategori];
+    if (!Number.isInteger(kurus) || kurus <= 0) {
+      throw new Error(`Yedekteki "${kategori}" bütçesi bozuk: limit pozitif tam sayı olmalı.`);
+    }
+    temiz[kategori] = kurus;
+  }
+  return temiz;
+}
+
+// ============================================================
 // YEDEKLEME
 // ============================================================
 //
@@ -459,7 +579,12 @@ function yeniyeGoreSirala(kayitlar) {
 function yedekMetni() {
   const depo = depoOku();
   return JSON.stringify(
-    { surum: SURUM, olusturma: bugununTarihi(), kayitlar: depo.kayitlar },
+    {
+      surum: SURUM,
+      olusturma: bugununTarihi(),
+      kayitlar: depo.kayitlar,
+      butceler: depo.butceler,
+    },
     null,
     2
   );
@@ -535,10 +660,14 @@ function yedekOku(metin) {
     };
   });
 
-  // Temiz kayıtları tam bir depo iskeletine koyup dönüyoruz: arayüz
+  // Temiz parçaları tam bir depo iskeletine koyup dönüyoruz: arayüz
   // onaylarsa bu nesne olduğu gibi depoYaz'a verilebilir.
+  // (Eski biçim çıplak listeydi; onda bütçe bölümü yok, boş kalır.)
   const depo = bosDepo();
   depo.kayitlar = kayitlar;
+  if (!Array.isArray(veri)) {
+    depo.butceler = butceleriDenetle(veri.butceler);
+  }
   return depo;
 }
 
@@ -565,6 +694,13 @@ if (typeof module !== "undefined" && module.exports) {
     depoyuTasi,
     depoOku,
     depoYaz,
+    UYARI_ORANI,
+    BUTCE_DURUMLARI,
+    butceleriOku,
+    butceBelirle,
+    butceDurumAdi,
+    butceDurumu,
+    butceleriDenetle,
     tlToKurus,
     kurusYaz,
     kurusSade,

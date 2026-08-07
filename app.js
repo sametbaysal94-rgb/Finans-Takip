@@ -78,6 +78,9 @@ function ozetiYenile() {
   // Kalan eksiye düştüyse kırmızıya çevir — göz hemen fark etsin.
   bul("kart-kalan").classList.toggle("eksi", ozet.kalan < 0);
 
+  // --- Bütçe çubukları (limit konmuşsa) ---
+  butceleriCiz(kayitlar);
+
   // --- Bu aydan uzaklaştıysak dönüş düğmesini göster ---
   if (ayniAy(secilenAy, bugununAyi())) gizle(bul("bugune-don"));
   else goster(bul("bugune-don"));
@@ -91,6 +94,118 @@ function ozetiYenile() {
 
   listeyiCiz(ayinKayitlari);
 }
+
+// ============================================================
+// BÜTÇELER
+// ============================================================
+
+// Özet'teki tek bir bütçe çubuğu satırını üretir.
+// Üstte "Market   450,00 / 500,00 ₺", altta dolan bir çubuk.
+function butceCubuguYap(durum) {
+  const satir = document.createElement("div");
+  satir.className = "butce-satir";
+
+  const ust = document.createElement("div");
+  ust.className = "butce-ust";
+
+  const ad = document.createElement("span");
+  ad.className = "butce-ad";
+  ad.textContent = durum.kategori;
+  ust.appendChild(ad);
+
+  const sayi = document.createElement("span");
+  sayi.className = "butce-sayi";
+  sayi.textContent = kurusSade(durum.harcanan) + " / " + kurusSade(durum.limit) + " ₺  (%" + durum.yuzde + ")";
+  ust.appendChild(sayi);
+
+  satir.appendChild(ust);
+
+  const cubuk = document.createElement("div");
+  cubuk.className = "butce-cubuk";
+
+  const dolgu = document.createElement("div");
+  // Durum sınıfı rengi seçiyor: butce-iyi / butce-uyari / butce-asildi.
+  dolgu.className = "butce-dolgu butce-" + durum.durum;
+  // Genişliği YÜZDE olarak veriyoruz (renk değil — renkler hep CSS'te).
+  // %100'ü aşan harcama çubuğu taşırmasın diye kırpılıyor; gerçek yüzde
+  // yukarıdaki yazıda zaten görünüyor.
+  dolgu.style.width = Math.min(durum.yuzde, 100) + "%";
+  cubuk.appendChild(dolgu);
+
+  satir.appendChild(cubuk);
+  return satir;
+}
+
+// Özet'teki bütçe bölümünü çizer. Hiç limit yoksa bölüm tümden gizli —
+// bütçe kullanmayan birinin Özet'i kalabalıklaşmasın.
+function butceleriCiz(kayitlar) {
+  const bolum = bul("butce-ozet");
+  const durumlar = butceDurumu(kayitlar, butceleriOku(), secilenAy.yil, secilenAy.ay);
+
+  if (durumlar.length === 0) {
+    gizle(bolum);
+    return;
+  }
+
+  goster(bolum);
+  const liste = bul("butce-listesi");
+  liste.innerHTML = "";
+  for (const durum of durumlar) liste.appendChild(butceCubuguYap(durum));
+}
+
+// Rapor sekmesindeki limit formunun tek satırı: kategori adı + kutu.
+function butceFormSatiriYap(kategori, kurus) {
+  const satir = document.createElement("label");
+  satir.className = "butce-form-satir";
+
+  const ad = document.createElement("span");
+  ad.className = "butce-form-ad";
+  ad.textContent = kategori;
+  satir.appendChild(ad);
+
+  const alan = document.createElement("input");
+  alan.type = "text";
+  alan.inputMode = "decimal";
+  alan.autocomplete = "off";
+  alan.placeholder = "limit yok";
+  alan.className = "butce-form-alan";
+  // Hangi kategorinin kutusu olduğunu data-kategori taşıyor. Kutulara
+  // ayrı ayrı id VERMİYORUZ: testler id'leri HTML'de arar, dinamik
+  // üretilen id'ler o güvenlik ağının dışında kalırdı.
+  alan.dataset.kategori = kategori;
+  alan.value = kurus ? kurusSade(kurus) : "";
+  satir.appendChild(alan);
+
+  return satir;
+}
+
+function butceFormunuDoldur() {
+  const form = bul("butce-formu");
+  form.innerHTML = "";
+  const butceler = butceleriOku();
+  for (const kategori of KATEGORILER) {
+    form.appendChild(butceFormSatiriYap(kategori, butceler[kategori]));
+  }
+}
+
+// Limit kaydetme: kayıt listesindeki silme gibi olay devriyle —
+// 8 kutuya 8 dinleyici yerine forma 1 dinleyici.
+bul("butce-formu").addEventListener("change", (olay) => {
+  const alan = olay.target.closest(".butce-form-alan");
+  if (!alan) return;
+
+  const kategori = alan.dataset.kategori;
+  try {
+    const kurus = butceBelirle(kategori, alan.value);
+    // Kutuyu kasanın kabul ettiği biçimle tazele ("5000" -> "5.000,00").
+    alan.value = kurus ? kurusSade(kurus) : "";
+    butceleriCiz(kayitlariOku());
+    bildir(kurus ? kategori + " limiti: " + kurusYaz(kurus) : kategori + " limiti silindi");
+  } catch (hata) {
+    alert(hata.message);
+    butceFormunuDoldur(); // kutuyu depodaki geçerli değere geri döndür
+  }
+});
 
 // ============================================================
 // AY GEZİNME
@@ -356,6 +471,7 @@ bul("yedek-dosya").addEventListener("change", () => {
 // ============================================================
 
 kategorileriDoldur();
+butceFormunuDoldur();
 bul("alan-tarih").value = bugununTarihi(); // tarih varsayılan olarak bugün
 kategoriKutusunuGuncelle();
 sekmeGoster("ozet");

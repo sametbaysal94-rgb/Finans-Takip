@@ -29,10 +29,13 @@
 
   <main>
 
+    <!-- Bildirim SEKMELERİN DIŞINDA duruyor: Rapor sekmesindeyken de
+         "kaydedildi" mesajı görünebilsin. Sekme gizleme sadece .sayfa
+         bölümlerini kapsıyor, bu satırı etkilemiyor. -->
+    <p id="bildirim" class="bildirim gizli"></p>
+
     <!-- ======================= ÖZET SEKMESİ ======================= -->
     <section id="sayfa-ozet" class="sayfa">
-
-      <p id="bildirim" class="bildirim gizli"></p>
 
       <!-- Tüm zamanların toplamı. Ay seçiminden bağımsız. -->
       <div class="varlik">
@@ -68,6 +71,14 @@
           <strong id="kart-kalan" class="kart-tutar">0,00 ₺</strong>
         </div>
       </div>
+
+      <!-- Bütçe çubukları: sadece limit koyduğun kategoriler görünür.
+           Hiç limit yoksa bölümün tamamı gizli (app.js yönetiyor).
+           Limitler Rapor sekmesinden ayarlanıyor. -->
+      <section id="butce-ozet" class="butce-ozet gizli">
+        <h2 class="butce-baslik">Bütçeler</h2>
+        <div id="butce-listesi" class="butce-listesi"></div>
+      </section>
 
       <!-- Bulunduğumuz aydan uzaklaşınca görünür (app.js yönetiyor). -->
       <button type="button" id="bugune-don" class="bugune-don gizli">
@@ -155,12 +166,31 @@
       </form>
     </section>
 
+    <!-- ======================= RAPOR SEKMESİ ======================= -->
+    <section id="sayfa-rapor" class="sayfa gizli">
+
+      <!-- Aylık bütçe limitleri. Satırlar app.js tarafından
+           KATEGORILER listesinden üretiliyor (HTML'e elle yazılmıyor —
+           kategori listesi tek kaynaktan gelsin). -->
+      <section class="ayar">
+        <h2 class="ayar-baslik">Aylık bütçeler</h2>
+        <p class="ayar-aciklama">
+          Kategori başına aylık harcama limiti. Aynı limit her ay için
+          geçerlidir; geçmiş bir aya bakarken de bugünkü limitler
+          gösterilir. Limiti silmek için kutuyu boşalt.
+        </p>
+        <div id="butce-formu" class="butce-formu"></div>
+      </section>
+
+    </section>
+
   </main>
 
   <!-- Alt çubuk: telefonda başparmağın rahat ulaştığı yer. -->
   <nav class="alt-bar">
     <button type="button" class="sekme" data-sekme="ozet">Özet</button>
     <button type="button" class="sekme" data-sekme="ekle">Ekle</button>
+    <button type="button" class="sekme" data-sekme="rapor">Rapor</button>
   </nav>
 
   <!-- SIRA ÖNEMLİ: veri.js önce yüklenmeli, çünkü app.js onun

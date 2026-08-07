@@ -422,6 +422,81 @@ esit("125050", V.kurusSade(125050), "1.250,50");
 esit("0", V.kurusSade(0), "0,00");
 
 // ============================================================
+// 4,8) BÜTÇELER
+// ============================================================
+
+baslik("butceBelirle ve butceleriOku");
+depoyuTemizle();
+esit("başta bütçe yok", Object.keys(V.butceleriOku()).length, 0);
+esit("limit koy (TL yazısıyla)", V.butceBelirle("Market", "5.000"), 500000);
+esit("okunuyor", V.butceleriOku().Market, 500000);
+esit("limit güncelle", V.butceBelirle("Market", "6.000"), 600000);
+esit("boş yazı limiti siler", V.butceBelirle("Market", ""), 0);
+esit("silindi", V.butceleriOku().Market, undefined);
+V.butceBelirle("Kira", 2000);
+esit('"0" da siler', V.butceBelirle("Kira", "0"), 0);
+hataAtmali("bilinmeyen kategori", () => V.butceBelirle("Tatil", 100));
+hataAtmali("saçma tutar", () => V.butceBelirle("Market", "abc"));
+hataAtmali("eksi limit", () => V.butceBelirle("Market", "-5"));
+
+baslik("butceDurumAdi — üç durum ve sınırları");
+esit("uyarı eşiği %80", V.UYARI_ORANI, 0.8);
+esit("butceleriDenetle bayat anahtarı atlıyor", Object.keys(V.butceleriDenetle({ Tatil: 5 })).length, 0);
+esit("butceleriDenetle eksik bölümü boşluyor", Object.keys(V.butceleriDenetle(undefined)).length, 0);
+esit("altında: iyi", V.butceDurumAdi(100, 1000), "iyi");
+esit("tam %80 sınırında: uyari", V.butceDurumAdi(800, 1000), "uyari");
+esit("limitin tamamı ama aşmadı: uyari", V.butceDurumAdi(1000, 1000), "uyari");
+esit("1 kuruş aşınca: asildi", V.butceDurumAdi(1001, 1000), "asildi");
+
+baslik("butceDurumu — ay bazlı bütçe tablosu");
+depoyuTemizle();
+V.kayitEkle({ tur: "gider", tutar: 1200, tarih: "2026-08-10", kategori: "Market" });
+V.kayitEkle({ tur: "gider", tutar: 400, tarih: "2026-08-12", kategori: "Market" });
+V.kayitEkle({ tur: "gider", tutar: 300, tarih: "2026-07-10", kategori: "Market" }); // başka ay
+V.kayitEkle({ tur: "gelir", tutar: 9999, tarih: "2026-08-11" }); // gelir bütçeye girmez
+V.kayitEkle({ tur: "gider", tutar: 50, tarih: "2026-08-11", kategori: "Fatura" }); // limitsiz kategori
+const denenecekButceler = { Market: 200000, Kira: 150000, Tatil: 100 }; // Tatil: bayat anahtar
+const butceTablosu = V.butceDurumu(V.kayitlariOku(), denenecekButceler, 2026, 8);
+esit("sadece limitli VE tanınan kategoriler", butceTablosu.length, 2);
+esit("sıra KATEGORILER sırası (Market önce)", butceTablosu[0].kategori, "Market");
+esit("harcanan sadece Ağustos gideri", butceTablosu[0].harcanan, 160000);
+esit("yüzde tam sayı", butceTablosu[0].yuzde, 80);
+esit("tam %80'de durum uyarı", butceTablosu[0].durum, "uyari");
+esit("Kira harcaması yok", butceTablosu[1].harcanan, 0);
+esit("Kira kalan = limit", butceTablosu[1].kalan, 150000);
+esit("Kira durumu iyi", butceTablosu[1].durum, "iyi");
+const asilan = V.butceDurumu(
+  [{ tur: "gider", kategori: "Market", kurus: 250000, tarih: "2026-08-01" }],
+  { Market: 200000 },
+  2026,
+  8
+);
+esit("aşınca durum", asilan[0].durum, "asildi");
+dogru("kalan eksiye düşüyor", asilan[0].kalan < 0);
+esit("yüzde 100'ü aşabiliyor", asilan[0].yuzde, 125);
+esit("boş kayıtla boş bütçe", V.butceDurumu([], {}, 2026, 8).length, 0);
+
+baslik("bütçeler yedeğe girip çıkıyor");
+depoyuTemizle();
+V.butceBelirle("Market", "1.000");
+V.kayitEkle({ tur: "gelir", tutar: 10, tarih: "2026-08-01" });
+const butceliYedek = V.yedekMetni();
+esit("zarfta bütçe var", JSON.parse(butceliYedek).butceler.Market, 100000);
+depoyuTemizle();
+esit("bütçe geri geliyor", V.yedekOku(butceliYedek).butceler.Market, 100000);
+hataAtmali("bozuk bütçe limiti reddedilir", () =>
+  V.yedekOku('{"surum":2,"kayitlar":[],"butceler":{"Market":10.5}}')
+);
+esit(
+  "bayat bütçe kategorisi sessizce atlanır",
+  Object.keys(V.yedekOku('{"surum":2,"kayitlar":[],"butceler":{"Tatil":100}}').butceler).length,
+  0
+);
+hataAtmali("bütçe bölümü dizi gelirse reddedilir", () =>
+  V.yedekOku('{"surum":2,"kayitlar":[],"butceler":[1]}')
+);
+
+// ============================================================
 // 5) DOSYALAR BİRBİRİYLE UYUMLU MU?
 // ============================================================
 //
@@ -497,6 +572,9 @@ for (const s of uretilenSiniflar) dogru("." + s, css.includes("." + s));
 // Yarım kalan "tutar-" + tur birleşimlerinin üç hâli de tanımlı olmalı.
 for (const tur of V.TURLER) dogru(".tutar-" + tur, css.includes(".tutar-" + tur));
 
+// Aynı oyun bütçe çubuğunda: "butce-" + durum birleşiminin üç hâli.
+for (const durum of V.BUTCE_DURUMLARI) dogru(".butce-" + durum, css.includes(".butce-" + durum));
+
 baslik("id'ler tekil mi?");
 esit(`${htmlIdListesi.length} id`, htmlIdListesi.length, htmlIdler.size);
 
@@ -524,9 +602,13 @@ baslik("CSS'te kullanılmayan sınıf kalmış mı?");
 // Ters yön denetim: CSS'te kural yazdığımız her sınıf gerçekten
 // bir yerde kullanılıyor mu? Ölü kod birikmesini engelliyor.
 const cssSiniflar = new Set([...cssYorumsuz.matchAll(/\.([a-zA-Z][\w-]*)/g)].map((m) => m[1]));
-// JavaScript'te parça parça kurulan sınıflar ("tutar-" + tur) düz
-// arama ile bulunamaz; onları yukarıda ayrıca doğruladık.
-const DINAMIK_SINIFLAR = new Set(V.TURLER.map((t) => "tutar-" + t));
+// JavaScript'te parça parça kurulan sınıflar ("tutar-" + tur,
+// "butce-" + durum) düz arama ile bulunamaz; onları yukarıda ayrıca
+// doğruladık.
+const DINAMIK_SINIFLAR = new Set([
+  ...V.TURLER.map((t) => "tutar-" + t),
+  ...V.BUTCE_DURUMLARI.map((d) => "butce-" + d),
+]);
 const kullanilmayanCss = [...cssSiniflar].filter(
   (s) => !DINAMIK_SINIFLAR.has(s) && !html.includes(s) && !js.includes(s)
 );

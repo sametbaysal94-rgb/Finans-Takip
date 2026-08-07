@@ -33,6 +33,10 @@
   --gider-acik: #f87171; /* koyu zemin üstünde okunabilen açık kırmızı */
   --yatirim: #4f46e5;
 
+  /* Bütçe çubuğunun "limite yaklaşıyorsun" rengi (kehribar).
+     İyi durum --vurgu, aşılma --gider kullanıyor; yeni renk sadece bu. */
+  --uyari: #d97706;
+
   /* Üstteki koyu varlık kutusu */
   --koyu: #14181d;
   --koyu-yazi: #98a2ad;
@@ -360,6 +364,134 @@ button {
 }
 
 /* ============================================================
+   BÜTÇELER — Özet'teki çubuklar
+   ============================================================ */
+
+.butce-ozet {
+  margin-top: 18px;
+}
+
+.butce-baslik {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--yazi-soluk);
+  margin: 0 0 8px;
+}
+
+.butce-listesi {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.butce-satir {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.butce-ust {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.butce-ad {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.butce-sayi {
+  font-size: 12px;
+  color: var(--yazi-cok-soluk);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* Çubuğun rayı ve içindeki dolgu. Dolgunun genişliğini app.js yüzde
+   olarak veriyor (renk asla JavaScript'ten gelmez, hep buradan). */
+.butce-cubuk {
+  height: 8px;
+  background: var(--bastirilmis);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.butce-dolgu {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.2s;
+}
+
+/* Üç durum. Renk tek kanal değil: sayı ve yüzde hemen çubuğun
+   üstünde yazıyor, renk körlüğü bilgiyi kaybettirmiyor. */
+.butce-iyi { background: var(--vurgu); }
+.butce-uyari { background: var(--uyari); }
+.butce-asildi { background: var(--gider); }
+
+/* ============================================================
+   RAPOR — ayar bölümleri ve bütçe formu
+   ============================================================ */
+
+.ayar {
+  margin-top: 4px;
+}
+
+.ayar-baslik {
+  font-size: 15px;
+  font-weight: 700;
+  margin: 14px 0 6px;
+}
+
+.ayar-aciklama {
+  font-size: 13px;
+  color: var(--yazi-cok-soluk);
+  margin: 0 0 12px;
+}
+
+.butce-formu {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.butce-form-satir {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--kart);
+  border: 1px solid var(--kenar);
+  border-radius: var(--yuvarlak);
+  padding: 8px 8px 8px 14px;
+}
+
+.butce-form-ad {
+  flex: 1;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.butce-form-alan {
+  width: 130px;
+  /* 16px: daha küçüğünde iPhone alana dokununca sayfayı yakınlaştırıyor. */
+  font-size: 16px;
+  font-family: inherit;
+  color: inherit;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  padding: 9px 10px;
+  background: var(--zemin);
+  border: 1px solid var(--kenar);
+  border-radius: 8px;
+}
+
+.butce-form-alan:focus {
+  outline: none;
+  border-color: var(--vurgu);
+}
+
+/* ============================================================
    ÖZET — yedekleme
    ============================================================ */
 
@@ -556,7 +688,8 @@ button {
 
 .sekme {
   flex: 1;
-  max-width: calc(var(--sayfa-genislik) / 2);
+  /* Üç sekme var (Özet / Ekle / Rapor); toplamı sayfa genişliğini aşmasın. */
+  max-width: calc(var(--sayfa-genislik) / 3);
   font-size: 14px;
   font-weight: 600;
   color: var(--yazi-cok-soluk);
