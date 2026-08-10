@@ -20,7 +20,7 @@ let secilenAy = bugununAyi();
 //
 // DİKKAT: bu değer service-worker.js'teki ONBELLEK sürümüyle AYNI olmalı.
 // İkisi ayrışırsa gösterilen sürüm yalan söyler; testler.js bunu denetliyor.
-const UYGULAMA_SURUMU = "v9";
+const UYGULAMA_SURUMU = "v10";
 
 // ============================================================
 // ARAYÜZ YARDIMCILARI
@@ -1230,9 +1230,41 @@ if ("serviceWorker" in navigator) {
   // load olayını bekliyoruz: service worker'ın indirilmesi, sayfanın
   // ilk açılışıyla yarışıp onu yavaşlatmasın.
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("./service-worker.js").catch((hata) => {
-      console.log("Service worker kaydolmadı (localhost veya https gerekir):", hata.message);
-    });
+    navigator.serviceWorker
+      .register("./service-worker.js")
+      .then((kayit) => {
+        // GÜNCELLEMEYİ KENDİMİZ SORUYORUZ (2026-08-10).
+        //
+        // NEDEN: kayıt tek başına "yeni sürüm var mı?" diye sormuyor;
+        // tarayıcı kendi bildiği zamanlarda soruyor. Ana ekrana eklenmiş
+        // bir iPhone uygulaması ise günlerce hiç sormayabiliyor — kullanıcı
+        // uygulamayı açıp kapatsa bile eski sürümde kalıyor ve gönderilen
+        // düzeltmeler ona hiç ulaşmıyor. Bu, "düzelttim ama düzelmedi"
+        // tablosunun sessiz sebebi.
+        kayit.update();
+
+        // Uygulamaya her geri dönüldüğünde de bir kez soruyoruz. Maliyeti
+        // küçük bir istek; karşılığı, düzeltmelerin cihaza gerçekten inmesi.
+        document.addEventListener("visibilitychange", () => {
+          if (!document.hidden) kayit.update();
+        });
+      })
+      .catch((hata) => {
+        console.log("Service worker kaydolmadı (localhost veya https gerekir):", hata.message);
+      });
+  });
+
+  // Yeni sürüm devraldığı anda sayfayı BİR KEZ yeniliyoruz.
+  //
+  // Olmasaydı: yeni dosyalar inip devreye girerdi ama ekranda hâlâ eski
+  // kod çalışıyor olurdu — kullanıcı uygulamayı tekrar açana kadar
+  // güncellemeyi görmezdi. `yenilendi` bayrağı sonsuz yenileme döngüsünü
+  // engelliyor (yenileme yeni bir devralmayı tetikleyebilir).
+  let yenilendi = false;
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    if (yenilendi) return;
+    yenilendi = true;
+    location.reload();
   });
 }
 

@@ -1342,7 +1342,17 @@ dogru('"./" ve "index.html" ikisi birden yok', !(listedekiler.has("") && listede
 
 baslik("service worker kaydı ve önbellek yönetimi");
 dogru("app.js service-worker.js'i kaydediyor", js.includes('register("./service-worker.js")'));
-dogru("kayıt hatası yakalanıyor (file:// çökmesin)", /register\([^)]*\)\s*\.catch/.test(js));
+// DİKKAT: burada eskiden `register(...).catch` diye BİTİŞİK bir kalıp
+// aranıyordu. Kayıt zincirine araya bir `.then(...)` eklendiği anda test
+// kırıldı — oysa hata yakalama yerli yerindeydi. Test, kodun ne YAPTIĞINI
+// değil nasıl YAZILDIĞINI denetliyordu. Artık zincirin sonunda bir .catch
+// bulunmasına bakıyoruz: kayıt zinciri file:// üzerinde her hâlükârda
+// hata verir, yakalanmazsa uygulama açılışta konsola çöp döker.
+const kayitZinciri = js.slice(js.indexOf('register("./service-worker.js")'));
+dogru(
+  "kayıt hatası yakalanıyor (file:// çökmesin)",
+  /\.catch\(\(hata\)/.test(kayitZinciri.slice(0, 1400))
+);
 dogru("önbellek adı sürümlü", /const ONBELLEK = "[^"]*v\d+"/.test(swKod));
 dogru("install olayı var", swKod.includes('addEventListener("install"'));
 dogru("activate olayı var", swKod.includes('addEventListener("activate"'));
@@ -1633,6 +1643,17 @@ esit(
   appSurum ? appSurum[1] : "?",
   swSurum ? swSurum[1] : "??"
 );
+
+baslik("Uygulama kendi güncellemesini arıyor mu?");
+// 2026-08-10: iki düzeltme üst üste gönderildi ve telefonda "değişmedi"
+// çıktı. Ortaya çıkan asıl şüphe: güncelleme cihaza hiç inmiyor olabilir.
+// Kayıt tek başına "yeni sürüm var mı?" diye SORMAZ; ana ekrana eklenmiş
+// bir iPhone uygulaması günlerce sormayabiliyor.
+dogru("kayıttan sonra güncelleme soruluyor", js.includes("kayit.update()"));
+dogru("uygulamaya dönünce de soruluyor", /!document\.hidden\) kayit\.update\(\)/.test(js));
+dogru("yeni sürüm devralınca sayfa yenileniyor", js.includes('"controllerchange"'));
+// Yenileme yeni bir devralmayı tetikleyebilir; bayrak olmazsa sonsuz döngü.
+dogru("sonsuz yenileme döngüsüne karşı bayrak var", /let yenilendi = false/.test(js) && /if \(yenilendi\) return/.test(js));
 
 baslik("Ekran okuyucu — duyulmayan hiçbir şey kalmasın");
 dogru("bildirim canlı bölge", /id="bildirim"[^>]*role="status"/.test(html));
