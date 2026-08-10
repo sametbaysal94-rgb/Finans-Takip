@@ -1166,6 +1166,28 @@ button {
    ALT SEKME ÇUBUĞU
    ============================================================ */
 
+/* Sürüm satırı — Yedekleme bölümünün en altında, küçük ve sessiz.
+   Bilgi vermek için var, dikkat çekmek için değil. */
+.surum-satiri {
+  margin: 12px 0 0;
+  font-size: 12px;
+  color: var(--yazi-cok-soluk);
+  text-align: center;
+}
+
+/* KLAVYE AÇIKKEN ALT ÇUBUK ÇEKİLİYOR.
+   Neo'nun bildirdiği sorunun ikinci adayı burası. Ana ekrandan açılan bir
+   iPhone uygulamasında klavye çıkınca iOS GÖRÜNEN alanı küçültüyor ama
+   sayfanın kendi ölçüsünü değiştirmiyor. Dipte `position: fixed` bir çubuk
+   varken bu ikisi çakışıyor: sayfa kayıyor/ölçekleniyor ve klavye
+   kapanınca eski hâline dönmüyor — kullanıcı parmağıyla düzeltmek
+   zorunda kalıyor.
+   Çubuğu yazı yazılırken tamamen kaldırıyoruz. Kaybı yok: klavye zaten
+   onun üstünü örtüyor, yani görünmesinin bir faydası olmuyordu. */
+body.yazi-yaziliyor .alt-bar {
+  display: none;
+}
+
 .alt-bar {
   position: fixed;
   bottom: 0;

@@ -1602,6 +1602,38 @@ dogru(
   !/\.(alan input|butce-form-alan)[^}]*font-size:\s*16px/s.test(cssYorumsuz)
 );
 
+baslik("Klavye açıkken alt çubuk çekiliyor");
+// Neo'nun telefonda bildirdiği yakınlaşma sorununun 2. adımı. Dipteki
+// sekme çubuğu tek `position: fixed` öğemiz; iOS klavyeyi açınca görünen
+// alanı küçültüyor ama sayfanın ölçüsünü değiştirmiyor ve çakılı öğe
+// arada kalıyor.
+dogru("yazı alanı ayırt ediliyor", js.includes("function yaziAlaniMi("));
+dogru("odaklanınca işaret konuyor", js.includes('classList.add("yazi-yaziliyor")'));
+dogru("odak çıkınca işaret kalkıyor", js.includes('classList.remove("yazi-yaziliyor")'));
+dogru("çubuk gizleniyor", /body\.yazi-yaziliyor \.alt-bar\s*\{[^}]*display:\s*none/.test(cssYorumsuz));
+// Radyo ve onay kutusu klavye açmaz; onlarda çubuğu gizlemek boş yere
+// ekranı oynatırdı.
+dogru(
+  "radyo/onay kutusu yazı alanı sayılmıyor",
+  /yaziAlaniMi[\s\S]{0,400}?"select-one"/.test(js) && !/yaziAlaniMi[\s\S]{0,400}?"checkbox"/.test(js)
+);
+
+baslik("Sürüm göstergesi — telefonda hangi sürüm var?");
+// Telefonda sorun konuşurken "sende yeni sürüm mü var?" sorusunun cevabı
+// yoktu; her deneme belirsiz kalıyordu.
+dogru("sürüm satırı HTML'de var", html.includes('id="surum-satiri"'));
+dogru("sürüm satırı dolduruluyor", js.includes('bul("surum-satiri")'));
+const appSurum = js.match(/const UYGULAMA_SURUMU = "(v\d+)"/);
+const swSurum = swKod.match(/const ONBELLEK = "finans-takip-(v\d+)"/);
+dogru("app.js sürümü tanımlı", Boolean(appSurum));
+dogru("service worker sürümü tanımlı", Boolean(swSurum));
+// İkisi ayrışırsa ekranda yazan sürüm YALAN söyler ve teşhis çöker.
+esit(
+  "gösterilen sürüm ile önbellek sürümü aynı",
+  appSurum ? appSurum[1] : "?",
+  swSurum ? swSurum[1] : "??"
+);
+
 baslik("Ekran okuyucu — duyulmayan hiçbir şey kalmasın");
 dogru("bildirim canlı bölge", /id="bildirim"[^>]*role="status"/.test(html));
 dogru("bildirim kibarca okunuyor", /id="bildirim"[^>]*aria-live="polite"/.test(html));

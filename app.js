@@ -11,6 +11,17 @@
 // "let" kullandık çünkü ay okları bunu değiştirecek (Adım 5).
 let secilenAy = bugununAyi();
 
+// Uygulamanın sürümü — Yedekleme bölümünün altında görünüyor.
+//
+// NEDEN VAR: telefonda bir sorun konuşurken "sende yeni sürüm mü var?"
+// sorusunun cevabı yoktu. Uygulama güncellendi mi güncellenmedi mi tahmin
+// ediliyor, bu da her denemeyi belirsiz kılıyordu. Artık bakılıp
+// söylenebiliyor.
+//
+// DİKKAT: bu değer service-worker.js'teki ONBELLEK sürümüyle AYNI olmalı.
+// İkisi ayrışırsa gösterilen sürüm yalan söyler; testler.js bunu denetliyor.
+const UYGULAMA_SURUMU = "v9";
+
 // ============================================================
 // ARAYÜZ YARDIMCILARI
 // ============================================================
@@ -1102,6 +1113,7 @@ bul("yedek-dosya").addEventListener("change", () => {
 // BAŞLANGIÇ — sayfa açıldığında bir kez çalışan satırlar
 // ============================================================
 
+bul("surum-satiri").textContent = "Sürüm " + UYGULAMA_SURUMU;
 kategorileriDoldur();
 butceFormunuDoldur();
 sablonlariCiz();
@@ -1153,6 +1165,47 @@ function gunDegistiyseTazele() {
   tekrarlariGoster();
   yedekDurumunuGoster();
 }
+
+// ============================================================
+// KLAVYE AÇIKKEN ALT ÇUBUĞU ÇEK
+// ============================================================
+//
+// Neo'nun bildirdiği sorunun ikinci adayı (2026-08-10, 1. adım çözmedi):
+// ana ekrandan açılan iPhone uygulamasında bir kutuya dokununca sayfa
+// yakınlaşıyor ve klavye kapanınca eski hâline dönmüyor.
+//
+// Dipteki sekme çubuğu `position: fixed` — sayfayla birlikte kaymayan,
+// ekrana çakılı tek öğemiz. iOS klavyeyi açınca görünen alanı küçültüyor
+// ama sayfanın ölçüsünü değiştirmiyor; çakılı öğe bu ikisinin arasında
+// kalıyor. Yazı yazılırken çubuğu tümden kaldırıyoruz.
+
+// Bu öğeye yazı yazılıyor mu? Radyo düğmesi ve onay kutusu SAYILMAZ:
+// onlara dokununca klavye açılmıyor, çubuğu boş yere gizlemeyelim.
+function yaziAlaniMi(oge) {
+  if (!oge) return false;
+  if (oge.tagName === "TEXTAREA") return true;
+  if (oge.tagName !== "INPUT" && oge.tagName !== "SELECT") return false;
+  return ["text", "number", "search", "tel", "email", "url", "date", "select-one"].includes(oge.type);
+}
+
+// focusin/focusout: focus'un kabarcıklanan (bubbling) hâli. Tek dinleyiciyle
+// bütün kutuları yakalıyoruz — her kutuya ayrı dinleyici bağlamak, kutular
+// yeniden çizilince (bütçe formu) kopardı.
+document.addEventListener("focusin", (olay) => {
+  if (yaziAlaniMi(olay.target)) document.body.classList.add("yazi-yaziliyor");
+});
+
+document.addEventListener("focusout", () => {
+  // Bir kutudan ötekine geçerken çubuk yanıp sönmesin: focusout, yeni
+  // kutunun focusin'inden ÖNCE geliyor. Sıfır gecikmeli setTimeout ile
+  // sıranın sonuna geçip "gerçekten bir yazı alanından çıktık mı?" diye
+  // soruyoruz.
+  setTimeout(() => {
+    if (!yaziAlaniMi(document.activeElement)) {
+      document.body.classList.remove("yazi-yaziliyor");
+    }
+  }, 0);
+});
 
 // visibilitychange: uygulamaya/sekmeye geri dönüldüğünde çalışır — telefonu
 // cebe koyup ertesi gün açmanın yakalandığı yer burası.
