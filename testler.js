@@ -1568,6 +1568,40 @@ for (const [ad, kalip] of [
   dogru(`${ad} en az 44px  (${m ? m[1] : "bulunamadı"})`, Boolean(m) && Number(m[1]) >= 44);
 }
 
+baslik("Girdi puntosu — iPhone'un yakınlaştırma eşiği");
+//
+// Neo telefonda bildirdi (2026-08-10): yazı yazmak için bir kutuya
+// dokununca sayfa yakınlaşıyor ve klavye kapanınca eski hâline dönmüyor.
+// Ölçüldü: yazı yazılan 12 kutunun 12'si de tam 16px'ti, yani kuralın
+// TAM SINIRINDA duruyorduk. iPhone "16'nın altındaysa yakınlaştır" der;
+// sınırda durmak, yuvarlama yüzünden sınırın altına düşme riskini
+// taşır. 17'ye çıkarıldı ve değer tek bir yerde toplandı.
+//
+// Bu test, o değerin ileride "biraz küçültelim" diye geri çekilmesini
+// engelliyor. Bir kutu küçülürse telefonda yaşanan rahatsızlık geri gelir
+// ve sebebi kimsenin aklına gelmez.
+const girdiPunto = cssYorumsuz.match(/--girdi-punto\s*:\s*(\d+(?:\.\d+)?)px/);
+dogru("girdi puntosu tek yerde tanımlı", Boolean(girdiPunto));
+dogru(
+  `girdi puntosu 16'nın üstünde (${girdiPunto ? girdiPunto[1] : "?"}px)`,
+  Boolean(girdiPunto) && Number(girdiPunto[1]) > 16
+);
+// Yazı yazılan her kutu bu değişkeni kullanmalı; biri elle 14px yazarsa
+// yukarıdaki denetim onu göremezdi.
+for (const secici of [".alan input,\n.alan select", ".butce-form-alan"]) {
+  const blok = cssYorumsuz.slice(cssYorumsuz.indexOf(secici));
+  const kural = blok.slice(0, blok.indexOf("}"));
+  dogru(
+    `${secici.replace(/\n/g, " ")} değişkeni kullanıyor`,
+    kural.includes("font-size: var(--girdi-punto)")
+  );
+}
+// Ham "font-size: 16px" bir daha girdi kurallarına sızmasın.
+dogru(
+  "girdi kurallarında elle yazılmış 16px kalmadı",
+  !/\.(alan input|butce-form-alan)[^}]*font-size:\s*16px/s.test(cssYorumsuz)
+);
+
 baslik("Ekran okuyucu — duyulmayan hiçbir şey kalmasın");
 dogru("bildirim canlı bölge", /id="bildirim"[^>]*role="status"/.test(html));
 dogru("bildirim kibarca okunuyor", /id="bildirim"[^>]*aria-live="polite"/.test(html));

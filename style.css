@@ -78,6 +78,19 @@
   --yuvarlak-buyuk: 18px;
   --sayfa-genislik: 480px;
   --sayfa-bosluk: 16px;
+
+  /* YAZI YAZILAN KUTULARIN PUNTOSU — bu değeri düşürme.
+     iPhone, dokunulan bir kutunun puntosu 16'nın ALTINDAysa sayfayı
+     kendiliğinden yakınlaştırıyor ve klavye kapanınca eski hâline
+     dönmüyor; kullanıcı her seferinde parmağıyla küçültmek zorunda kalıyor.
+     Uzun süre 16 yazıyordu — yani kuralın tam sınırında duruyorduk.
+     Sınırda durmak sınırın gerisinde durmakla aynı şey değil: yazı tipi
+     ölçüleri, ekranın piksel oranı ve iOS'un kendi yuvarlaması işin içine
+     girince hesaplanan değer kılpayı 16'nın altına düşebiliyor.
+     17 diyerek sınırı tamamen terk ediyoruz; gözle fark edilmiyor.
+     Değer BURADA tek yerde duruyor — eskiden iki ayrı kuralda tekrar
+     ediyordu ve birinin unutulması işten bile değildi. */
+  --girdi-punto: 17px;
 }
 
 /* ============================================================
@@ -648,8 +661,8 @@ button {
 
 .butce-form-alan {
   width: 130px;
-  /* 16px: daha küçüğünde iPhone alana dokununca sayfayı yakınlaştırıyor. */
-  font-size: 16px;
+  /* Gerekçe :root/--girdi-punto'da yazılı — iPhone'un yakınlaştırma eşiği. */
+  font-size: var(--girdi-punto);
   font-family: inherit;
   color: inherit;
   text-align: right;
@@ -1078,9 +1091,8 @@ button {
 .alan input,
 .alan select {
   width: 100%;
-  /* 16px önemli: daha küçük yazı boyutunda iPhone, alana dokununca
-     sayfayı otomatik yakınlaştırıyor ve düzen bozuluyor. */
-  font-size: 16px;
+  /* Gerekçe :root/--girdi-punto'da yazılı — iPhone'un yakınlaştırma eşiği. */
+  font-size: var(--girdi-punto);
   font-family: inherit;
   color: inherit;
   padding: 13px 14px;
