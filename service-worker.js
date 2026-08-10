@@ -18,7 +18,14 @@
 // DİKKAT: buradaki sürüm DOSYALARIN sürümü. veri.js'teki SURUM ise
 // VERİNİN yapısı. İkisi ayrı ayrı ilerler; sayıları zamanla birbirini
 // tutmayacak ve bu bir hata değil.
-const ONBELLEK = "finans-takip-v6";
+const ONBELLEK = "finans-takip-v7";
+
+// Bu uygulamanın önbelleklerini tanıtan ön ek. Temizlik yaparken NİYE gerekli:
+// aynı adreste (github.io) yayınlanan başka uygulamaların önbellekleri de
+// aynı listede görünüyor. Ön ek olmadan yapılan temizlik onları da siliyordu
+// (denetim bulgusu) — Finans Takip açılınca komşu uygulamalar çevrimdışı
+// çalışamaz hâle geliyordu.
+const ONEK = "finans-takip-";
 
 // Uygulamanın çalışması için gereken dosyalar.
 //
@@ -66,9 +73,19 @@ self.addEventListener("activate", (olay) => {
     caches
       .keys()
       .then((adlar) =>
-        // Adı bizim güncel önbelleğimizden farklı olan her şeyi sil.
-        // Yoksa her sürümde bir önbellek birikip telefonun yerini yer.
-        Promise.all(adlar.filter((ad) => ad !== ONBELLEK).map((ad) => caches.delete(ad)))
+        // Yalnızca BİZİM eski önbelleklerimizi sil.
+        //
+        // DİKKAT: burada eskiden sadece "ad !== ONBELLEK" yazıyordu ve bu,
+        // aynı adreste yayınlanan HER uygulamanın önbelleğini siliyordu.
+        // localStorage gibi Cache Storage da adres (origin) başınadır, klasör
+        // başına değil — yani github.io hesabındaki bütün projeler aynı rafı
+        // paylaşıyor. Ön ek denetimi olmadan Finans Takip her açılışta
+        // komşularının çevrimdışı kopyasını çöpe atıyordu.
+        Promise.all(
+          adlar
+            .filter((ad) => ad.startsWith(ONEK) && ad !== ONBELLEK)
+            .map((ad) => caches.delete(ad))
+        )
       )
       // clients.claim: açık olan sayfayı da hemen bu sürüme bağla.
       .then(() => self.clients.claim())
@@ -105,8 +122,16 @@ self.addEventListener("fetch", (olay) => {
           // önbelleğe, biri tarayıcıya gitsin diye kopyalıyoruz.
           const kopya = yanit.clone();
           caches.open(ONBELLEK).then((onbellek) => onbellek.put(istek, kopya));
+          return yanit;
         }
-        return yanit;
+
+        // DİKKAT — SUNUCU ARIZASI (denetim bulgusu): fetch YALNIZCA bağlantı
+        // kopunca hata sayılır. Sunucu "503 Servis kullanılamıyor" derse fetch
+        // BAŞARILI sayılır ve aşağıdaki .catch hiç çalışmaz. Eskiden bu yanıt
+        // olduğu gibi kullanıcıya gidiyordu: elinde çalışan bir çevrimdışı
+        // kopya dururken GitHub'ın geçici arızasında uygulama açılmıyordu.
+        // Artık önce önbelleğe bakıyoruz; orada da yoksa hatayı geçiriyoruz.
+        return caches.match(istek).then((saklanan) => saklanan || caches.match("./").then((ana) => ana || yanit));
       })
       .catch(() =>
         // İnternet yok: önbellekten ver. Tam eşleşme yoksa uygulamanın

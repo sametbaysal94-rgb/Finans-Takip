@@ -7,7 +7,7 @@
 
   <!-- theme-color: telefonda üstteki durum çubuğunun rengi.
        style.css'teki --vurgu ile aynı olmalı. -->
-  <meta name="theme-color" content="#0d9488">
+  <meta name="theme-color" content="#007f73">
 
   <!-- Uygulamanın kimlik kartı: adı, ikonu, nasıl açılacağı.
        Telefonun "ana ekrana ekle" seçeneğini sunması bu dosyaya bağlı. -->
@@ -32,10 +32,15 @@
     <!-- Bildirim SEKMELERİN DIŞINDA duruyor: Rapor sekmesindeyken de
          "kaydedildi" mesajı görünebilsin. Sekme gizleme sadece .sayfa
          bölümlerini kapsıyor, bu satırı etkilemiyor. -->
-    <p id="bildirim" class="bildirim gizli"></p>
+    <!-- role="status" + aria-live="polite": ekran okuyucu bu satır
+         değiştiğinde metni KENDİLİĞİNDEN okur. Olmasaydı görme engelli bir
+         kullanıcı "Kaydedildi ✓" mesajını hiç duymazdı — kaydın olup
+         olmadığını anlamanın yolu kalmazdı. "polite" = sözünü kesme, o an
+         okuduğunu bitirsin. aria-atomic: cümleyi parça parça değil bütün oku. -->
+    <p id="bildirim" class="bildirim gizli" role="status" aria-live="polite" aria-atomic="true"></p>
 
     <!-- ======================= ÖZET SEKMESİ ======================= -->
-    <section id="sayfa-ozet" class="sayfa">
+    <section id="sayfa-ozet" class="sayfa" role="tabpanel" aria-labelledby="sekme-ozet">
 
       <!-- Zamanı gelen yinelenen işlemler. Özet'in EN ÜSTÜNDE duruyor:
            uygulamayı açtığında ilk göreceğin şey "şunları onaylar mısın?"
@@ -135,7 +140,7 @@
     </section>
 
     <!-- ======================= EKLE SEKMESİ ======================= -->
-    <section id="sayfa-ekle" class="sayfa gizli">
+    <section id="sayfa-ekle" class="sayfa gizli" role="tabpanel" aria-labelledby="sekme-ekle">
       <form id="ekle-formu">
 
         <!-- Tür seçimi. Görünüşte üç düğme, aslında üç radyo kutusu:
@@ -194,14 +199,18 @@
           <span class="onay-yazi">Her ay tekrarlansın (kira, maaş, abonelik)</span>
         </label>
 
-        <p id="form-hata" class="hata gizli"></p>
+        <!-- role="alert": hata mesajı belirdiği anda okunur ve "polite"in
+             aksine sözü keser — kullanıcı Kaydet'e bastı, sonucu ŞİMDİ
+             bilmeli. Eskiden bu kutu sadece boyanıyordu; ekran okuyucusu
+             kullanan biri düğmeye basıp hiçbir şey duymuyordu. -->
+        <p id="form-hata" class="hata gizli" role="alert" aria-live="assertive"></p>
 
         <button type="submit" class="kaydet">Kaydet</button>
       </form>
     </section>
 
     <!-- ======================= RAPOR SEKMESİ ======================= -->
-    <section id="sayfa-rapor" class="sayfa gizli">
+    <section id="sayfa-rapor" class="sayfa gizli" role="tabpanel" aria-labelledby="sekme-rapor">
 
       <!-- Grafikler hangi ayı gösteriyor? Ay okları Özet sekmesinde
            duruyor; bu satır olmasaydı Rapor'a geçen biri geçmiş bir aya
@@ -279,6 +288,13 @@
           <span class="anahtar-gider">gider</span>
         </div>
         <svg id="trend-grafik" class="trend-grafik" viewBox="0 0 300 140" aria-hidden="true"></svg>
+        <!-- Grafiğin YAZILI karşılığı. Halka grafiğin altındaki lejantla
+             aynı mantık: çizim aria-hidden olduğu için ekran okuyucu
+             yalnızca "gelir, gider" lejantını duyuyor, ayları ve tutarları
+             hiç alamıyordu — grafik onun için boş bir kutuydu. Bu liste
+             aynı bilgiyi yazı olarak veriyor; gören kullanıcı için de
+             çubukların tam değerini okumanın tek yolu bu. -->
+        <ul id="trend-liste" class="trend-liste"></ul>
         <p id="trend-bos" class="grafik-bos gizli">Henüz kayıt yok.</p>
       </section>
 
@@ -286,11 +302,21 @@
 
   </main>
 
-  <!-- Alt çubuk: telefonda başparmağın rahat ulaştığı yer. -->
-  <nav class="alt-bar">
-    <button type="button" class="sekme" data-sekme="ozet">Özet</button>
-    <button type="button" class="sekme" data-sekme="ekle">Ekle</button>
-    <button type="button" class="sekme" data-sekme="rapor">Rapor</button>
+  <!-- Alt çubuk: telefonda başparmağın rahat ulaştığı yer.
+
+       role="tablist" / "tab": ekran okuyucuya "bunlar sekme, biri seçili"
+       diyor. Eskiden yalnız CSS sınıfı değişiyordu; sınıf görsel bir şey,
+       ekran okuyucu onu görmez — kullanıcı "Rapor, düğme" duyuyor, hangi
+       sekmede olduğunu ya da kaç sekme olduğunu bilmiyordu.
+       aria-controls: bu düğme hangi bölümü açıyor.
+       aria-selected ve tabindex'i app.js/sekmeGoster güncelliyor. -->
+  <nav class="alt-bar" role="tablist" aria-label="Ana bölümler">
+    <button type="button" class="sekme" data-sekme="ozet" id="sekme-ozet"
+            role="tab" aria-controls="sayfa-ozet" aria-selected="false">Özet</button>
+    <button type="button" class="sekme" data-sekme="ekle" id="sekme-ekle"
+            role="tab" aria-controls="sayfa-ekle" aria-selected="false">Ekle</button>
+    <button type="button" class="sekme" data-sekme="rapor" id="sekme-rapor"
+            role="tab" aria-controls="sayfa-rapor" aria-selected="false">Rapor</button>
   </nav>
 
   <!-- SIRA ÖNEMLİ: veri.js önce yüklenmeli, çünkü app.js onun

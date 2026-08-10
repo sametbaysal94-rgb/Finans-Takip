@@ -77,7 +77,16 @@ function tlToKurus(deger) {
   if (!Number.isFinite(sayi)) return NaN;
 
   // Math.round: 19.99 * 100 aslında 1998.9999... verir, yuvarlayıp 1999 yapıyoruz.
-  return Math.round(sayi * 100);
+  const kurus = Math.round(sayi * 100);
+
+  // DİKKAT — GÜVENLİ TAM SAYI SINIRI: JavaScript 9.007.199.254.740.991'den
+  // büyük tam sayıları saklayamaz, sessizce en yakın komşusuna yuvarlar.
+  // Denetimde ölçüldü: "9007199254740993" yazınca ekranda ...992 çıkıyordu —
+  // sayı kullanıcıya haber verilmeden değişiyordu. Bu uygulamanın BÜTÜN temeli
+  // "para tam sayı kuruştur, ondalık hata olmaz" ilkesi; sınırı aşan bir değeri
+  // kabul etmek o ilkeyi sessizce çöpe atmak olurdu. Reddetmek dürüst olan.
+  if (!Number.isSafeInteger(kurus)) return NaN;
+  return kurus;
 }
 
 // Ekranda göstermek için sayı biçimlendirici.
@@ -319,8 +328,26 @@ function depoyuTasi(ham) {
 //   2) Değilse eski v1 rafına bak; bulursa v2'ye TAŞI (v1'i silmeden).
 //   3) İkisi de boşsa boş depo dön — ama YAZMADAN. Sadece okumak
 //      depoyu değiştirmemeli (testler bunu açıkça denetliyor).
+// Raftan okuma girişimi. Hiçbir koşulda hata FIRLATMAZ.
+//
+// DİKKAT (denetim bulgusu): localStorage'a erişmenin kendisi hata
+// verebiliyor — kullanıcı tarayıcı ayarlarından site verilerini tamamen
+// kapattıysa `localStorage.getItem` doğrudan bir güvenlik hatası atar.
+// Bu çağrı eskiden çıplaktı ve hata açılıştaki ilk okumada patlıyordu:
+// uygulama hiç çizilmiyor, ekran boş kalıyordu. Şimdi boş dönüyoruz;
+// kullanıcı uygulamayı görüyor ve kaydetmeye kalkınca depoYaz ona
+// anlaşılır bir cümleyle sebebi söylüyor.
+function rafOku(anahtar) {
+  try {
+    return localStorage.getItem(anahtar);
+  } catch (hata) {
+    console.error("Depolamaya erişilemiyor:", hata);
+    return null;
+  }
+}
+
 function depoOku() {
-  const metin = localStorage.getItem(DEPO_ANAHTARI);
+  const metin = rafOku(DEPO_ANAHTARI);
   if (metin) {
     try {
       const ham = JSON.parse(metin);
@@ -337,14 +364,18 @@ function depoOku() {
     }
   }
 
-  const eskiMetin = localStorage.getItem(ESKI_ANAHTAR);
+  const eskiMetin = rafOku(ESKI_ANAHTAR);
   if (eskiMetin) {
     try {
       const depo = depoyuTasi(JSON.parse(eskiMetin));
       // Taşımayı v2 rafına yazıyoruz ama v1 rafına DOKUNMUYORUZ:
       // eski raf bizim kurtarma kopyamız.
+      //
+      // zorla: true — buraya yalnızca v2 rafı YOKSA ya da BOZUKSA düşüyoruz.
+      // İkinci durumda bozuk v2 metninin üstüne yazmak kayıp değil KURTARMA:
+      // elimizdeki v1 kopyası gerçek veridir, bozuk metin zaten okunamıyor.
       try {
-        depoYaz(depo);
+        depoYaz(depo, { zorla: true });
       } catch (hata) {
         // Yazamadıysak bile (depo dolu?) veriyi bellekte kullanmaya
         // devam edebiliriz; okuma asla patlamaz.
@@ -363,7 +394,38 @@ function depoOku() {
 // Depoyu rafa yazar. localStorage dolunca (genelde ~5 MB) veya Safari
 // gizli moddayken setItem hata fırlatır — o kriptik hatayı kullanıcıya
 // anlayacağı bir cümleye çeviriyoruz.
-function depoYaz(depo) {
+// İkinci parametre isteğe bağlı: depoYaz(depo, { zorla: true }).
+// "zorla" yalnızca kullanıcının BİLEREK üzerine yazdığı iki yerde kullanılır:
+// yedekten geri yükleme ve v1 kurtarma kopyasının taşınması.
+function depoYaz(depo, secenek) {
+  // DİKKAT — ÜZERİNE YAZMA KORUMASI (denetim bulgusu, ölçülerek doğrulandı):
+  // Rafta okunamayan bir metin duruyorsa depoOku boş depo döner ve ekranda
+  // "hiç kayıt yok" yazar. Eskiden kullanıcının ekleyeceği İLK kayıt o
+  // okunamayan metnin üstüne yazıyordu. Ölçüm: 620 kayıtlık 70.526 karakterlik
+  // veri, tek bir yeni kayıttan sonra 210 karaktere düşüyordu — geri dönüşü yok.
+  //
+  // Artık yazmayı reddediyoruz. Bozuk ama DURAN veri, silinmiş veriden iyidir:
+  // tek karakteri eksik bir JSON metni elle ya da bir araçla kurtarılabilir,
+  // üzerine yazılmış bir metin kurtarılamaz.
+  if (!secenek || !secenek.zorla) {
+    const mevcut = rafOku(DEPO_ANAHTARI);
+    if (mevcut) {
+      let okunabilir = false;
+      try {
+        const ham = JSON.parse(mevcut);
+        okunabilir = typeof ham === "object" && ham !== null;
+      } catch (hata) {
+        okunabilir = false;
+      }
+      if (!okunabilir) {
+        throw new Error(
+          "Cihazdaki kayıtlar okunamıyor, üzerine yazmıyorum — verin hâlâ orada duruyor. " +
+            "Elinde yedek varsa 'Yedeği geri yükle' ile devam edebilirsin."
+        );
+      }
+    }
+  }
+
   try {
     localStorage.setItem(DEPO_ANAHTARI, JSON.stringify(depo));
   } catch (hata) {
@@ -431,11 +493,14 @@ function kaydiDenetle(yeni) {
   // DİKKAT: kuruş yolu şablondan kayıt üretirken lazım. Olmasaydı
   // şablondaki 125050'yi önce "1.250,50" metnine çevirip sonra geri
   // okumak gerekirdi — her turda yuvarlama riski taşıyan gereksiz bir
-  // gidiş-dönüş. Number.isInteger ile "kuruş verilmiş mi" diye bakıyoruz;
+  // gidiş-dönüş. Number.isSafeInteger ile "kuruş verilmiş mi" diye bakıyoruz;
   // 0 da tam sayıdır, o yüzden aşağıdaki sıfır denetimi yine çalışıyor.
-  const kurusVerildi = Number.isInteger(yeni.kurus);
+  //
+  // isInteger DEĞİL isSafeInteger: isInteger, 1e21 gibi devasa sayılara da
+  // "evet tam sayı" der, oysa o sayı artık kendisi olarak saklanamıyor.
+  const kurusVerildi = Number.isSafeInteger(yeni.kurus);
   const kurus = kurusVerildi ? yeni.kurus : tlToKurus(yeni.tutar);
-  if (!Number.isFinite(kurus) || kurus <= 0) {
+  if (!Number.isSafeInteger(kurus) || kurus <= 0) {
     throw new Error(
       `Geçersiz tutar: "${kurusVerildi ? yeni.kurus : yeni.tutar}". Sıfırdan büyük bir sayı olmalı.`
     );
@@ -533,10 +598,41 @@ function ayKayitlari(kayitlar, yil, ay) {
   return kayitlar.filter((k) => typeof k.tarih === "string" && k.tarih.startsWith(on));
 }
 
+// Bir kaydın tutarı hesaba katılabilir mi? Tek yerde soruyoruz ki
+// toplam, bütçe ve grafik aynı kaydı aynı gözle görsün.
+//
+// DİKKAT — TOPLAMI ZEHİRLEYEN KAYIT (denetim bulgusu, ölçülerek doğrulandı):
+// Rafta `kurus` alanı METİN olan tek bir kayıt varsa JavaScript toplama
+// yapmaz, metinleri yan yana yapıştırır: 0 + 120000 + "9900" -> "1200009900".
+// Ölçüm: 1.200,00 TL'lik aylık gider ekranda 12.000.099,00 TL görünüyordu.
+// Alan hiç yoksa toplam NaN oluyor ve ekranda "NaN ₺" yazıyordu.
+// Aynı bozuk kayıt YEDEK DOSYASINDAN gelse temiz bir mesajla reddediliyordu;
+// zırh vardı ama yalnızca tek kapıya takılıydı. Artık hesap kapısında da var.
+function tutariSayilir(k) {
+  return k && Number.isSafeInteger(k.kurus) && k.kurus > 0;
+}
+
+// Bir gider kaydının HANGİ kategoriye sayılacağı. Tanımadığımız bir kategori
+// (eski bir yedekten gelmiş, sonradan listeden çıkarılmış) "Diğer"e yazılır.
+//
+// DİKKAT — İKİ EKRANIN ÇELİŞMESİ (denetim bulgusu, ölçülerek doğrulandı):
+// Özet'teki gider kartı BÜTÜN giderleri toplar; kategori halkası ise yalnız
+// tanıdığı kategorileri dolaşırdı. Tanınmayan kategorili bir kayıt varken
+// Özet 1.000,00 TL, Rapor'daki halka 500,00 TL gösteriyordu — aynı para, iki
+// ekran, 500 TL fark. Kullanıcının hangisine inanacağını bilmesi imkânsızdı.
+// Kaydı dışarıda bırakmak yerine "Diğer"e sayıyoruz: para kaybolmuyor,
+// iki ekran her zaman aynı toplamı veriyor.
+function giderKategorisi(k) {
+  return KATEGORILER.includes(k.kategori) ? k.kategori : "Diğer";
+}
+
 // Verilen kayıtlar içinde belirli bir türün kuruş toplamı.
 // reduce: diziyi tek bir değere "indirger" — burada hepsini toplar.
 function turToplami(kayitlar, tur) {
-  return kayitlar.reduce((toplam, k) => (k.tur === tur ? toplam + k.kurus : toplam), 0);
+  return kayitlar.reduce(
+    (toplam, k) => (k.tur === tur && tutariSayilir(k) ? toplam + k.kurus : toplam),
+    0
+  );
 }
 
 // Bir ayın özeti: { gelir, gider, yatirim, kalan } — hepsi kuruş.
@@ -653,10 +749,15 @@ function butceDurumu(kayitlar, butceler, yil, ay) {
 
   for (const kategori of KATEGORILER) {
     const limit = butceler[kategori];
-    if (!Number.isInteger(limit) || limit <= 0) continue;
+    if (!Number.isSafeInteger(limit) || limit <= 0) continue;
 
+    // giderKategorisi: tanınmayan kategori "Diğer"e sayılıyor, böylece
+    // bütçe tablosu da Özet'teki gider toplamıyla aynı parayı görüyor.
     const harcanan = ayinKayitlari.reduce(
-      (toplam, k) => (k.tur === "gider" && k.kategori === kategori ? toplam + k.kurus : toplam),
+      (toplam, k) =>
+        k.tur === "gider" && tutariSayilir(k) && giderKategorisi(k) === kategori
+          ? toplam + k.kurus
+          : toplam,
       0
     );
 
@@ -689,7 +790,7 @@ function butceleriDenetle(ham) {
   for (const kategori of Object.keys(ham)) {
     if (!KATEGORILER.includes(kategori)) continue;
     const kurus = ham[kategori];
-    if (!Number.isInteger(kurus) || kurus <= 0) {
+    if (!Number.isSafeInteger(kurus) || kurus <= 0) {
       throw new Error(`Yedekteki "${kategori}" bütçesi bozuk: limit pozitif tam sayı olmalı.`);
     }
     temiz[kategori] = kurus;
@@ -743,6 +844,19 @@ function sonrakiTekrar(tarih, gun) {
   // Yıl devrini ayKaydir hallediyor: Aralık +1 -> gelecek yılın Ocak'ı.
   const sonraki = ayKaydir(yil, ay, 1);
   return tarihKur(sonraki.yil, sonraki.ay, gun);
+}
+
+// Bir şablonun SIRADAKİ (işlenmeyi bekleyen en eski) tekrar tarihi.
+// Şablon bozuksa boş metin döner — çağıran yer bunu "işlenemez" sayar.
+//
+// Bu fonksiyon, bekleyenTekrarlar'ın ürettiği listenin İLK satırının
+// tarihini verir. Onay ve atlama kapılarının bekçisi bu.
+function siradakiTekrar(sablon) {
+  if (!sablon || typeof sablon !== "object") return "";
+  if (typeof sablon.sonUretim !== "string") return "";
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(sablon.sonUretim)) return "";
+  if (!Number.isInteger(sablon.gun) || sablon.gun < 1 || sablon.gun > 31) return "";
+  return sonrakiTekrar(sablon.sonUretim, sablon.gun);
 }
 
 // Depodaki şablon listesi. Hiç yoksa boş dizi döner.
@@ -866,11 +980,20 @@ function tekrarOnayla(sablonId, tarih) {
   const sablon = depoOku().sablonlar.find((s) => s && s.id === sablonId);
   if (!sablon) return null;
 
-  // DİKKAT — ÇİFT ONAY KORUMASI (usta denetimi bulgusu): bu tarih zaten
-  // üretilmiş ya da atlanmışsa ikinci kez üretmiyoruz. İki pencere
-  // açıkken birinde onaylanan tekrar, ötekinin bayat "Ekle" düğmesinden
-  // bir daha eklenemesin. Tarihler "YYYY-MM-DD" olduğu için <= güvenli.
-  if (tarih <= sablon.sonUretim) return null;
+  // DİKKAT — SIRA KORUMASI (denetim bulgusu, ölçülerek doğrulandı):
+  // Yalnızca SIRADAKİ (en eski bekleyen) dönem işlenebilir.
+  //
+  // Eskiden koşul "tarih > sonUretim" idi ve şunu yapıyordu: panelde Haziran,
+  // Temmuz, Ağustos kirası birden beklerken kullanıcı EN ALTTAKİ (Ağustos)
+  // satırın "Ekle" düğmesine basarsa sayaç doğrudan Ağustos'a atlıyor, Haziran
+  // ve Temmuz hiç kaydedilmeden listeden siliniyordu. Ölçüm: 20.000 TL'lik iki
+  // kira kaydı geri dönüşü olmadan kayboluyor, Haziran'ın gider özeti 0,00 TL
+  // gösteriyordu. Her satırın kendi düğmesi olduğu için bu sıradan bir dokunma
+  // hatasıydı, uç bir durum değil.
+  //
+  // Eşitlik şartı çift onay korumasını da kapsıyor: zaten işlenmiş bir tarih
+  // artık "sıradaki" olmadığı için ikinci kez üretilemez.
+  if (tarih !== siradakiTekrar(sablon)) return null;
 
   let kayit;
   try {
@@ -916,10 +1039,11 @@ function tekrarAtla(sablonId, tarih) {
   const sablon = depo.sablonlar.find((s) => s && s.id === sablonId);
   if (!sablon) return false;
 
-  // Sayaç ASLA geriye gitmez (usta denetimi bulgusu): bayat bir ekrandan
-  // eski tarihli "Atla" gelirse yok sayıyoruz — geri giden sayaç, aynı
-  // tekrarların yeniden "bekleyen" olarak dirilmesi demekti.
-  if (tarih <= sablon.sonUretim) return false;
+  // Sayaç ASLA geriye gitmez ve ASLA dönem atlamaz — onaylamadaki sıra
+  // korumasının aynısı (bkz. tekrarOnayla). Yalnızca sıradaki dönem atlanabilir.
+  // Eskiden ileri bir tarihi atlamak, aradaki bütün dönemleri sessizce
+  // yutuyordu: kullanıcı "bu ayı atla" derken üç ayı birden atlamış oluyordu.
+  if (tarih !== siradakiTekrar(sablon)) return false;
 
   sablon.sonUretim = tarih;
   depoYaz(depo);
@@ -939,6 +1063,10 @@ function sablonlariDenetle(ham) {
     throw new Error("Yedekteki yinelenen işlem bölümü bozuk: liste olmalı.");
   }
 
+  // Kayıtlardaki çift kimlik koruması şablonlarda da geçerli: aynı kimlikli
+  // iki şablon olsaydı birini silmek ikisini birden silerdi.
+  const gorulenKimlikler = new Set();
+
   return ham.map((s, sira) => {
     const yer = `Yedekteki ${sira + 1}. yinelenen işlem`;
     if (typeof s !== "object" || s === null) {
@@ -947,10 +1075,14 @@ function sablonlariDenetle(ham) {
     if (typeof s.id !== "string" || s.id === "") {
       throw new Error(`${yer} bozuk: kimlik (id) eksik.`);
     }
+    if (gorulenKimlikler.has(s.id)) {
+      throw new Error(`${yer} bozuk: "${s.id}" kimliği bu dosyada ikinci kez geçiyor.`);
+    }
+    gorulenKimlikler.add(s.id);
     if (!TURLER.includes(s.tur)) {
       throw new Error(`${yer} bozuk: tür "${s.tur}" tanınmadı.`);
     }
-    if (!Number.isInteger(s.kurus) || s.kurus <= 0) {
+    if (!Number.isSafeInteger(s.kurus) || s.kurus <= 0) {
       throw new Error(`${yer} bozuk: tutar (kurus) pozitif tam sayı olmalı.`);
     }
     if (!Number.isInteger(s.gun) || s.gun < 1 || s.gun > 31) {
@@ -1040,13 +1172,17 @@ function kategoriDagilimi(kayitlar, yil, ay) {
   const satirlar = [];
   let toplam = 0;
 
-  // KATEGORILER üzerinde dönüyoruz, kayıtlar üzerinde değil: böylece
-  // artık listede olmayan (eski, silinmiş) bir kategori kendiliğinden
-  // dışarıda kalıyor — rengi olmayan bir dilim çizmek zorunda kalmıyoruz.
+  // KATEGORILER üzerinde dönüyoruz, kayıtlar üzerinde değil: her dilimin
+  // sabit bir rengi olsun diye. Tanımadığımız bir kategori artık dışarıda
+  // KALMIYOR, giderKategorisi onu "Diğer"e yazıyor — yoksa halkanın toplamı
+  // ile Özet'teki gider toplamı birbirini tutmuyordu (bkz. giderKategorisi).
   for (let i = 0; i < KATEGORILER.length; i++) {
     const kategori = KATEGORILER[i];
     const kurus = ayinKayitlari.reduce(
-      (t, k) => (k.tur === "gider" && k.kategori === kategori ? t + k.kurus : t),
+      (t, k) =>
+        k.tur === "gider" && tutariSayilir(k) && giderKategorisi(k) === kategori
+          ? t + k.kurus
+          : t,
       0
     );
     if (kurus <= 0) continue;
@@ -1057,8 +1193,26 @@ function kategoriDagilimi(kayitlar, yil, ay) {
 
   if (toplam === 0) return [];
 
-  for (const satir of satirlar) {
-    satir.yuzde = Math.round((satir.kurus / toplam) * 100);
+  // Yüzdeleri tek tek yuvarlamak toplamı 100'den kaydırıyordu (denetim
+  // bulgusu): sekiz kategoride de 1'er lira harcandıysa her payın gerçek
+  // değeri %12,5'tir, tek tek yuvarlayınca sekizi de %13 olur ve ekrandaki
+  // etiketlerin toplamı %104 çıkardı. Kullanıcı bunu görüp haklı olarak
+  // "hesap tutmuyor" der.
+  //
+  // Çözüm "en büyük kalan" yöntemi: önce herkes aşağı yuvarlanır, sonra
+  // 100'e tamamlamak için kalan puanlar KESRİ EN BÜYÜK olanlara birer
+  // birer dağıtılır. Eşitlik olursa KATEGORILER sırası karar verir, yani
+  // sonuç her cihazda aynı çıkar.
+  const kesirler = satirlar.map((satir) => {
+    const tamPay = (satir.kurus / toplam) * 100;
+    satir.yuzde = Math.floor(tamPay);
+    return { satir: satir, kesir: tamPay - satir.yuzde };
+  });
+
+  let dagitilacak = 100 - satirlar.reduce((t, s) => t + s.yuzde, 0);
+  kesirler.sort((a, b) => (b.kesir !== a.kesir ? b.kesir - a.kesir : a.satir.sira - b.satir.sira));
+  for (let i = 0; i < dagitilacak && i < kesirler.length; i++) {
+    kesirler[i].satir.yuzde++;
   }
 
   // Büyükten küçüğe; eşitlerde KATEGORILER sırası.
@@ -1246,15 +1400,37 @@ function yedekOku(metin) {
   } else if (typeof veri === "object" && veri !== null && Array.isArray(veri.kayitlar)) {
     // Zarfın sürümü bizden yeniyse kayıt yapısını tanımıyor olabiliriz.
     // Denemek yerine dürüstçe durup kullanıcıyı güncellemeye yolluyoruz.
-    if (Number.isInteger(veri.surum) && veri.surum > SURUM) {
-      throw new Error(
-        `Bu yedek uygulamanın daha yeni bir sürümünden (${veri.surum}) geliyor. Önce uygulamayı güncelle.`
-      );
+    //
+    // DİKKAT (denetim bulgusu): buradaki denetim eskiden yalnız
+    // Number.isInteger'a bakıyordu, yani sürüm alanı METİN olarak gelirse
+    // ("3") koşul sessizce atlanıyor ve gelecek sürümden gelen bir dosya
+    // "geçerli yedek" sayılıp geri yüklemeye kadar gidiyordu. Alan varsa
+    // artık düzgün bir sayı olmak ZORUNDA; yoksa (çok eski zarflar) sorun
+    // değil, aşağıdaki kayıt denetimleri zaten her kaydı tek tek eliyor.
+    if (veri.surum !== undefined && veri.surum !== null) {
+      if (!Number.isSafeInteger(veri.surum) || veri.surum < 1) {
+        throw new Error(
+          `Yedeğin sürüm bilgisi bozuk: "${veri.surum}". Dosya elle değiştirilmiş olabilir.`
+        );
+      }
+      if (veri.surum > SURUM) {
+        throw new Error(
+          `Bu yedek uygulamanın daha yeni bir sürümünden (${veri.surum}) geliyor. Önce uygulamayı güncelle.`
+        );
+      }
     }
     hamListe = veri.kayitlar;
   } else {
     throw new Error("Bu dosya bir yedeğe benzemiyor: içinde kayıt listesi yok.");
   }
+
+  // Kimlikleri sayıyoruz. Set: aynı değeri iki kez tutamayan liste.
+  //
+  // DİKKAT — ÇİFT KİMLİK (denetim bulgusu, ölçülerek doğrulandı): silme işlemi
+  // "kimliği buna eşit OLMAYANLARI tut" diye çalışıyor. Yedekte aynı kimlik iki
+  // kez geçerse tek bir satırın çöp kutusuna basmak İKİ kaydı birden siliyordu.
+  // Ölçüm: 300,00 TL'lik iki kayıttan birini silmek toplamı 0,00 TL yapıyordu.
+  const gorulenKimlikler = new Set();
 
   const kayitlar = hamListe.map((k, sira) => {
     const yer = `Yedekteki ${sira + 1}. kayıt`;
@@ -1264,11 +1440,19 @@ function yedekOku(metin) {
     if (typeof k.id !== "string" || k.id === "") {
       throw new Error(`${yer} bozuk: kimlik (id) eksik.`);
     }
+    if (gorulenKimlikler.has(k.id)) {
+      throw new Error(
+        `${yer} bozuk: "${k.id}" kimliği bu dosyada ikinci kez geçiyor. Böyle bir dosyada tek bir kaydı silmek iki kaydı birden silerdi.`
+      );
+    }
+    gorulenKimlikler.add(k.id);
     if (!TURLER.includes(k.tur)) {
       throw new Error(`${yer} bozuk: tür "${k.tur}" tanınmadı.`);
     }
     // Hesapları bozacak her şey sert reddedilir: kuruş pozitif TAM sayı olmalı.
-    if (!Number.isInteger(k.kurus) || k.kurus <= 0) {
+    // isSafeInteger: 1e21 gibi devasa sayılar "tam sayı" görünür ama artık
+    // kendileri olarak saklanamazlar; sessizce başka bir sayıya dönüşürler.
+    if (!Number.isSafeInteger(k.kurus) || k.kurus <= 0) {
       throw new Error(`${yer} bozuk: tutar (kurus) pozitif tam sayı olmalı.`);
     }
     if (!gecerliTarih(k.tarih)) {
@@ -1364,6 +1548,9 @@ if (typeof module !== "undefined" && module.exports) {
     kayitSil,
     TEKRAR_AZAMI,
     sonrakiTekrar,
+    siradakiTekrar,
+    tutariSayilir,
+    giderKategorisi,
     sablonlariOku,
     sablonEkle,
     sablonSil,

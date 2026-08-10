@@ -777,11 +777,45 @@ esit(
   V.kategoriDagilimi([{ tur: "gelir", kurus: 5000, tarih: "2026-08-01", kategori: "" }], 2026, 8).length,
   0
 );
-esit(
-  "artık tanınmayan kategori atlanıyor",
-  V.kategoriDagilimi([{ tur: "gider", kurus: 5000, tarih: "2026-08-01", kategori: "Tatil" }], 2026, 8).length,
-  0
+// DENETİM BULGUSU — İKİ EKRAN ÇELİŞİYORDU:
+// Tanınmayan kategori eskiden halkadan ATILIYORDU. Ama Özet'teki gider kartı
+// bütün giderleri topluyor. Sonuç: aynı para Özet'te 1.000,00 TL, Rapor'daki
+// halkada 500,00 TL görünüyordu. Artık böyle bir kayıt "Diğer"e sayılıyor:
+// para kaybolmuyor ve iki ekran her zaman aynı toplamı veriyor.
+const tanınmayanKategoriliAy = [
+  { tur: "gider", kurus: 50000, tarih: "2026-08-01", kategori: "Market" },
+  { tur: "gider", kurus: 50000, tarih: "2026-08-02", kategori: "Tatil" }, // artık yok
+];
+const tanınmayanDagilim = V.kategoriDagilimi(tanınmayanKategoriliAy, 2026, 8);
+esit("tanınmayan kategori atılmıyor, sayılıyor", tanınmayanDagilim.length, 2);
+dogru(
+  "tanınmayan kategori 'Diğer' dilimine yazılıyor",
+  tanınmayanDagilim.some((d) => d.kategori === "Diğer" && d.kurus === 50000)
 );
+
+baslik("DEĞİŞMEZ: halkanın toplamı ile Özet'teki gider toplamı HER ZAMAN eşit");
+// Bu iki sayı kullanıcıya iki ayrı ekranda gösteriliyor. Farklı çıkarlarsa
+// kullanıcının hangisine inanacağını bilmesi imkânsız. Bu yüzden eşitliği
+// tek tek örneklerle değil, bir KURAL olarak sınıyoruz.
+const celiskiOrnekleri = [
+  [{ tur: "gider", kurus: 50000, tarih: "2026-08-01", kategori: "Tatil" }],
+  [{ tur: "gider", kurus: 12345, tarih: "2026-08-01", kategori: "" }],
+  [{ tur: "gider", kurus: 700, tarih: "2026-08-01" }], // kategori alanı hiç yok
+  [
+    { tur: "gider", kurus: 50000, tarih: "2026-08-01", kategori: "Market" },
+    { tur: "gider", kurus: 50000, tarih: "2026-08-02", kategori: "Tatil" },
+    { tur: "gelir", kurus: 900000, tarih: "2026-08-03", kategori: "" },
+  ],
+];
+for (let i = 0; i < celiskiOrnekleri.length; i++) {
+  const ornek = celiskiOrnekleri[i];
+  const halkaToplam = V.kategoriDagilimi(ornek, 2026, 8).reduce((t, d) => t + d.kurus, 0);
+  esit(
+    `${i + 1}. örnekte halka toplamı = aylık gider`,
+    halkaToplam,
+    V.ozetHesapla(ornek, 2026, 8).gider
+  );
+}
 
 baslik("kategoriDagilimi — eşitlikte sıra hep aynı (kararlılık)");
 // İki kategori tıpatıp aynı tutarda: hangisi önce gelecek? Cevabı
@@ -1154,11 +1188,34 @@ const HAZIR_OLANLAR = new Set([
 
 // app.js'in kendi içinde tanımladığı fonksiyonlar
 const appYerelleri = new Set(tumEslesmeler(js, /function\s+(\w+)\s*\(/g));
+
+// Fonksiyonların PARAMETRELERİ de bu listeye giriyor. Neden: bir fonksiyon
+// dışarıdan iş alıp onu çağırabiliyor (depoyaYaz(is) -> is()). Tarayıcı
+// yalnızca "function ad(" kalıbını bildiği için böyle bir parametreyi
+// "tanımı bulunamayan çağrı" sanıyordu — yanlış alarm.
+for (const imza of tumEslesmeler(js, /function\s+\w+\s*\(([^)]*)\)/g)) {
+  for (const parca of imza.split(",")) {
+    const ad = parca.trim().split(/[\s=]/)[0];
+    if (/^\w+$/.test(ad)) appYerelleri.add(ad);
+  }
+}
 // veri.js'in dışa açtığı isimler
 const veriIsimleri = new Set(Object.keys(V));
 
+// DİKKAT — METİNLERİ ÖNCE ÇIKARIYORUZ: bu tarayıcı eskiden kaynağın
+// TAMAMINI, kullanıcıya gösterilen Türkçe cümleler dahil, çağrı arıyormuş
+// gibi okuyordu. `\w` Türkçe harfleri saymadığı için "üstteki (en eski)"
+// cümlesi "stteki(" diye bölünüyor ve olmayan bir fonksiyon çağrısı gibi
+// görünüyordu — testi Türkçe bir mesaj yüzünden kırmızıya çeviren yanlış
+// alarm. Fonksiyon çağrısı hiçbir zaman metin İÇİNDE olmaz; o yüzden tırnak
+// içindeki her şeyi taramadan önce siliyoruz.
+const jsMetinsiz = js
+  .replace(/'(?:\\.|[^'\\])*'/g, "''")
+  .replace(/"(?:\\.|[^"\\])*"/g, '""')
+  .replace(/`(?:\\.|[^`\\])*`/g, "``");
+
 // "isim(" kalıbı — ama başında nokta olmayanlar (yani .forEach( sayılmaz)
-const cagrilar = new Set(tumEslesmeler(js, /(?:^|[^.\w$])(\w+)\s*\(/gm));
+const cagrilar = new Set(tumEslesmeler(jsMetinsiz, /(?:^|[^.\w$])(\w+)\s*\(/gm));
 
 let bilinmeyen = [];
 for (const ad of cagrilar) {
@@ -1293,6 +1350,303 @@ dogru("fetch olayı var", swKod.includes('addEventListener("fetch"'));
 dogru("eski önbellekler siliniyor", swKod.includes("caches.delete"));
 dogru("sadece başarılı yanıtlar önbelleğe giriyor", swKod.includes("yanit.ok"));
 dogru("çevrimdışı yedek olarak önbelleğe düşülüyor", swKod.includes("caches.match"));
+
+// ============================================================
+// DENETİM 2026-08-10 — BULUNAN HATALARIN NÖBETÇİLERİ
+// ============================================================
+//
+// Aşağıdaki her blok, dört şeritli bir denetimde bulunup ÖLÇÜLEREK
+// doğrulanmış bir hataya aittir. Her biri düzeltildi; buradaki testler
+// hatanın geri gelmesini engelliyor. Bir testi silmeden önce, altındaki
+// hatanın neden bir daha olamayacağını söyleyebiliyor olman gerekir.
+
+baslik("Güvenli tam sayı sınırı — sessizce değişen tutar");
+// Ölçüm: "9007199254740993" giriliyordu, ekranda ...992 çıkıyordu.
+// JavaScript bu büyüklükten sonra tam sayıları saklayamaz.
+esit("güvenli sınırın üstü reddediliyor", V.tlToKurus("99999999999999999999"), NaN);
+esit("bilimsel gösterimle de aşılamıyor", V.tlToKurus("1e21"), NaN);
+esit("sınırın altı hâlâ kabul", V.tlToKurus("1.000.000"), 100000000);
+hataAtmali("kayıt: güvensiz büyüklükte kuruş reddediliyor", () =>
+  V.kaydiDenetle({ tur: "gelir", kurus: Number.MAX_SAFE_INTEGER + 2 })
+);
+hataAtmali("yedek: güvensiz büyüklükte kuruş reddediliyor", () =>
+  V.yedekOku(
+    JSON.stringify({
+      surum: V.SURUM,
+      kayitlar: [{ id: "a", tur: "gelir", kurus: 9007199254740993, tarih: "2026-08-01" }],
+    })
+  )
+);
+
+baslik("Bozuk kayıt toplamı zehirlemiyor");
+// Ölçüm: rafta `kurus` alanı METİN olan tek bir kayıt, 1.200,00 TL'lik
+// aylık gideri 12.000.099,00 TL gösteriyordu (metin birleştirme).
+// Alan hiç yoksa ekranda "NaN ₺" yazıyordu.
+const zehirli = [
+  { id: "1", tur: "gelir", kurus: 5000000, tarih: "2026-08-01", kategori: "" },
+  { id: "2", tur: "gider", kurus: 120000, tarih: "2026-08-03", kategori: "Market" },
+  { id: "3", tur: "gider", kurus: "9900", tarih: "2026-08-05", kategori: "Market" }, // metin
+  { id: "4", tur: "gider", tarih: "2026-08-06", kategori: "Market" }, // alan yok
+];
+const zehirliOzet = V.ozetHesapla(zehirli, 2026, 8);
+esit("metin tutar toplama karışmıyor", zehirliOzet.gider, 120000);
+esit("gelir bozulmuyor", zehirliOzet.gelir, 5000000);
+esit("kalan NaN olmuyor", zehirliOzet.kalan, 4880000);
+esit("toplam varlık NaN olmuyor", V.toplamVarlik(zehirli), 4880000);
+esit(
+  "bütçe tablosu da etkilenmiyor",
+  V.butceDurumu(zehirli, { Market: 500000 }, 2026, 8)[0].harcanan,
+  120000
+);
+
+baslik("Bozuk deponun üzerine yazılmıyor");
+// Ölçüm: 620 kayıtlık 70.526 karakterlik veri, ekranda "0 kayıt" görünüyor
+// ve eklenen İLK kayıt onu 210 karaktere düşürüyordu — geri dönüşü yok.
+depoyuTemizle();
+const bozukMetin = '{"surum":2,"kayitlar":[{"id":"1","tur":"gelir","kurus":100000';
+localStorage.setItem(V.DEPO_ANAHTARI, bozukMetin);
+// veri.js burada bilerek console.error basıyor; test çıktısı kirlenmesin.
+console.error = () => {};
+esit("bozuk depo boş görünüyor (eski davranış korunuyor)", V.kayitlariOku().length, 0);
+hataAtmali("bozuk deponun üstüne kayıt eklenemiyor", () =>
+  V.kayitEkle({ tur: "gelir", tutar: "100" })
+);
+console.error = eskiHataYazici;
+esit("ham veri hâlâ olduğu gibi duruyor", localStorage.getItem(V.DEPO_ANAHTARI), bozukMetin);
+// Kaçış kapısı: geri yükleme bilerek üzerine yazabilmeli, yoksa kullanıcı
+// bozuk depodan hiç kurtulamazdı.
+V.depoYaz(V.bosDepo(), { zorla: true });
+esit("geri yükleme (zorla) yazabiliyor", V.kayitlariOku().length, 0);
+dogru("zorla yazdıktan sonra depo okunabilir", localStorage.getItem(V.DEPO_ANAHTARI) !== bozukMetin);
+depoyuTemizle();
+
+baslik("Tekrarlarda sıra koruması — atlanan aylar kaybolmuyor");
+// Ölçüm: üç ay bekleyen kirada kullanıcı EN ALTTAKİ satırın "Ekle"sine
+// basınca 20.000 TL'lik iki kira geri dönüşü olmadan siliniyordu.
+depoyuTemizle();
+const kiraSablonu = V.sablonEkle({
+  tur: "gider",
+  tutar: "10.000",
+  baslangic: "2026-05-05",
+  aciklama: "Kira",
+  kategori: "Kira",
+});
+const bekleyenUc = V.bekleyenTekrarlar(V.sablonlariOku(), "2026-08-10");
+esit("üç dönem bekliyor", bekleyenUc.length, 3);
+esit("sıradaki dönem en eskisi", V.siradakiTekrar(V.sablonlariOku()[0]), "2026-06-05");
+// EN YENİ satıra basmak: iş yapılmamalı.
+esit("ileri tarihli onay reddediliyor", V.tekrarOnayla(kiraSablonu.id, "2026-08-05"), null);
+esit("hiçbir kayıt üretilmedi", V.kayitlariOku().length, 0);
+esit("bekleyenler duruyor", V.bekleyenTekrarlar(V.sablonlariOku(), "2026-08-10").length, 3);
+esit("ileri tarihli atlama da reddediliyor", V.tekrarAtla(kiraSablonu.id, "2026-08-05"), false);
+esit("atlama sonrası da bekleyenler duruyor", V.bekleyenTekrarlar(V.sablonlariOku(), "2026-08-10").length, 3);
+// Doğru sırayla ilerleyince her şey çalışıyor.
+dogru("sıradaki dönem onaylanabiliyor", V.tekrarOnayla(kiraSablonu.id, "2026-06-05") !== null);
+esit("kayıt üretildi", V.kayitlariOku().length, 1);
+esit("Haziran gideri artık görünüyor", V.ozetHesapla(V.kayitlariOku(), 2026, 6).gider, 1000000);
+esit("geri kalan iki dönem hâlâ bekliyor", V.bekleyenTekrarlar(V.sablonlariOku(), "2026-08-10").length, 2);
+esit("aynı dönem ikinci kez onaylanamıyor", V.tekrarOnayla(kiraSablonu.id, "2026-06-05"), null);
+depoyuTemizle();
+
+baslik("Yedekte çift kimlik reddediliyor");
+// Ölçüm: aynı kimlikli iki kayıt kabul ediliyordu; tek satırı silmek
+// 300,00 TL'nin tamamını siliyordu.
+hataAtmali("aynı kimlikli iki kayıt", () =>
+  V.yedekOku(
+    JSON.stringify({
+      surum: V.SURUM,
+      kayitlar: [
+        { id: "x", tur: "gelir", kurus: 10000, tarih: "2026-08-01" },
+        { id: "x", tur: "gelir", kurus: 20000, tarih: "2026-08-02" },
+      ],
+    })
+  )
+);
+hataAtmali("aynı kimlikli iki şablon", () =>
+  V.sablonlariDenetle([
+    { id: "s", tur: "gider", kurus: 1000, gun: 5, siklik: "aylik", sonUretim: "2026-08-05", kategori: "Kira" },
+    { id: "s", tur: "gider", kurus: 2000, gun: 6, siklik: "aylik", sonUretim: "2026-08-06", kategori: "Kira" },
+  ])
+);
+
+baslik("Service worker — komşu uygulamaların önbelleği ve sunucu arızası");
+// Ölçüm/okuma: temizlik "adı bizimkinden farklı olan her şeyi sil" diyordu.
+// Cache Storage adres başınadır: aynı github.io hesabındaki BÜTÜN projeler
+// aynı rafı paylaşır, yani Finans Takip komşularını siliyordu.
+dogru("silme yalnız kendi ön ekiyle sınırlı", swKod.includes("startsWith(ONEK)"));
+dogru("ön ek tanımlı", /const ONEK = "finans-takip-"/.test(swKod));
+// fetch YALNIZCA bağlantı kopunca hata sayılır; 503 "başarılı" gelir ve
+// eskiden olduğu gibi kullanıcıya giderdi.
+dogru(
+  "başarısız HTTP yanıtında önbelleğe düşülüyor",
+  /return caches\.match\(istek\)/.test(swKod)
+);
+
+baslik("Yazma hataları artık sessizce yutulmuyor");
+// depoYaz üç durumda hata fırlatır (dolu depo, gizli mod, okunamayan raf).
+// Silme ve atlama düğmelerinde hiç yakalanmıyordu: kullanıcı basıyor,
+// hiçbir şey olmuyor, hiçbir açıklama çıkmıyordu.
+dogru("ortak yazma kapısı var", js.includes("function depoyaYaz("));
+dogru("kayıt silme kapıdan geçiyor", js.includes("depoyaYaz(() => kayitSil("));
+dogru("şablon silme kapıdan geçiyor", js.includes("depoyaYaz(() => sablonSil("));
+dogru("tekrar atlama kapıdan geçiyor", /depoyaYaz\(\(\) => \{ atlandi = tekrarAtla\(/.test(js));
+
+baslik("Gün değişimi — gece yarısını geçen uygulama");
+// Ölçüm/okuma: tarih alanı yalnızca açılışta dolduruluyordu ve app.js'te
+// sayfanın geri gelişini dinleyen hiçbir şey yoktu. 31 Ağustos'ta açık
+// bırakılan uygulamada 1 Eylül'de girilen kayıt Ağustos'a yazılıyordu.
+dogru("sayfaya dönüş dinleniyor", js.includes('addEventListener("visibilitychange"'));
+dogru("bellekten dönüş de dinleniyor", js.includes('addEventListener("pageshow"'));
+dogru("gün değişimini işleyen fonksiyon var", js.includes("function gunDegistiyseTazele("));
+dogru("tarih alanı elle değiştirilmişse korunuyor", js.includes("alan.value === eskiGun"));
+
+baslik("Renk kontrastı — yazılar okunabiliyor mu? (HESAPLANIYOR)");
+//
+// Bu blok renkleri gözle değil FORMÜLLE denetliyor. Bir yazının zeminiyle
+// arasındaki kontrast oranı en az 4,5 olmalı; altına düşen yazı güneşte,
+// yorgun gözle ya da ucuz bir ekranda okunmuyor.
+//
+// NEDEN TEST: denetimde altı rengin ölçütü karşılamadığı bulundu (en
+// kötüsü 2,90). Renkler tek yerde (:root) durduğu için değiştirmesi kolay
+// — ve tam bu yüzden ileride biri "şu ton daha hoş" deyip farkında olmadan
+// okunurluğu bozabilir. Bu test onu anında yakalar.
+function renkAyir(hex) {
+  const h = hex.replace("#", "").trim();
+  return [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16) / 255);
+}
+function gorecelParlaklik(hex) {
+  const [r, g, b] = renkAyir(hex).map((c) =>
+    c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4)
+  );
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+function kontrast(a, b) {
+  const x = gorecelParlaklik(a);
+  const y = gorecelParlaklik(b);
+  return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05);
+}
+// :root içindeki değişkenleri CSS'ten okuyoruz — testte elle kopyalasaydık
+// renk değişince test eski değeri denetlemeye devam ederdi.
+function cssRenk(ad) {
+  const m = cssYorumsuz.match(new RegExp("--" + ad + "\\s*:\\s*(#[0-9a-fA-F]{6})"));
+  return m ? m[1] : null;
+}
+const ZEMINLER = { zemin: cssRenk("zemin"), kart: cssRenk("kart"), solgun: cssRenk("vurgu-solgun") };
+dogru("zemin renkleri okunabildi", Object.values(ZEMINLER).every(Boolean));
+
+// Bu renkler YAZI olarak kullanılıyor: üçünün üstünde de okunmalılar.
+for (const ad of ["yazi", "yazi-soluk", "yazi-cok-soluk", "vurgu", "gelir", "gider", "uyari", "yatirim"]) {
+  const renk = cssRenk(ad);
+  const enKotu = Math.min(...Object.values(ZEMINLER).map((z) => kontrast(renk, z)));
+  dogru(`--${ad} (${renk}) yazı olarak okunuyor · en kötü oran ${enKotu.toFixed(2)}`, enKotu >= 4.5);
+}
+// Bu renkler beyaz yazı TAŞIYAN zeminler (düğmeler).
+for (const ad of ["vurgu", "vurgu-koyu"]) {
+  const renk = cssRenk(ad);
+  const o = kontrast(cssRenk("kart"), renk);
+  dogru(`--${ad} üstündeki beyaz yazı okunuyor · oran ${o.toFixed(2)}`, o >= 4.5);
+}
+// Koyu varlık kutusundaki soluk yazı.
+dogru(
+  "koyu kutudaki --koyu-yazi okunuyor",
+  kontrast(cssRenk("koyu-yazi"), cssRenk("koyu")) >= 4.5
+);
+// theme-color üç yerde birden yazılı; biri unutulursa telefonun üst
+// çubuğu uygulamanın geri kalanından farklı renkte kalır.
+dogru("index.html theme-color = --vurgu", html.includes('content="' + cssRenk("vurgu") + '"'));
+
+baslik("Dokunma hedefleri en az 44 piksel");
+// Yürürken telefona basan bir parmağın hata payı var. 44 önerilen taban.
+for (const [ad, kalip] of [
+  [".ay-ok", /\.ay-ok\s*\{[^}]*width:\s*(\d+)px/],
+  [".sil", /\.sil\s*\{[^}]*width:\s*(\d+)px/],
+  [".sablon-sil", /\.sablon-sil\s*\{[^}]*width:\s*(\d+)px/],
+  [".tekrar-ekle/.tekrar-atla", /\.tekrar-atla\s*\{[^}]*min-height:\s*(\d+)px/],
+  [".bugune-don", /\.bugune-don\s*\{[^}]*min-height:\s*(\d+)px/],
+]) {
+  const m = cssYorumsuz.match(kalip);
+  dogru(`${ad} en az 44px  (${m ? m[1] : "bulunamadı"})`, Boolean(m) && Number(m[1]) >= 44);
+}
+
+baslik("Ekran okuyucu — duyulmayan hiçbir şey kalmasın");
+dogru("bildirim canlı bölge", /id="bildirim"[^>]*role="status"/.test(html));
+dogru("bildirim kibarca okunuyor", /id="bildirim"[^>]*aria-live="polite"/.test(html));
+dogru("form hatası uyarı rolünde", /id="form-hata"[^>]*role="alert"/.test(html));
+dogru("sekme çubuğu tablist", /<nav[^>]*role="tablist"/.test(html));
+esit("üç sekmenin de tab rolü var", (html.match(/class="sekme"[^>]*role="tab"/g) || []).length, 3);
+esit("üç bölümün de tabpanel rolü var", (html.match(/role="tabpanel"/g) || []).length, 3);
+dogru("sekme hangi bölümü açtığını söylüyor", html.includes('aria-controls="sayfa-ozet"'));
+dogru("seçili sekme işaretleniyor", js.includes('setAttribute("aria-selected"'));
+dogru("sekmelerde ok tuşuyla gezinme var", js.includes('olay.key !== "ArrowRight"'));
+dogru("hatalı alan işaretleniyor", js.includes('setAttribute("aria-invalid", "true")'));
+dogru("hata giderilince işaret kalkıyor", js.includes('removeAttribute("aria-invalid")'));
+dogru("trend grafiğinin yazılı karşılığı var", html.includes('id="trend-liste"'));
+dogru("yazılı karşılık dolduruluyor", js.includes('bul("trend-liste")'));
+// Ay adıyla tutarlar bitişik okunmasın diye araya boşluk konuyor.
+dogru("ay adı ile tutarlar bitişik okunmuyor", js.includes('ayAdi(ay.yil, ay.ay) + " "'));
+
+baslik("Yüzdelerin toplamı her zaman 100");
+// Ölçüm: sekiz kategoride de 1'er lira harcandığında her pay %12,5 iken
+// ekranda sekizi de %13 yazıyor, toplam %104 görünüyordu.
+const sekizEsit = V.KATEGORILER.map((k, i) => ({
+  tur: "gider", kurus: 100, tarih: "2026-08-0" + ((i % 9) + 1), kategori: k,
+}));
+const sekizDagilim = V.kategoriDagilimi(sekizEsit, 2026, 8);
+esit("sekiz kategori de listede", sekizDagilim.length, V.KATEGORILER.length);
+esit("yüzdeler toplamı 100", sekizDagilim.reduce((t, d) => t + d.yuzde, 0), 100);
+// Üç ve iki kategorili eski örneklerin sonucu DEĞİŞMEMELİ.
+esit(
+  "üç kategoride toplam yine 100",
+  V.kategoriDagilimi(
+    [
+      { tur: "gider", kurus: 40000, tarih: "2026-08-01", kategori: "Market" },
+      { tur: "gider", kurus: 20000, tarih: "2026-08-02", kategori: "Fatura" },
+      { tur: "gider", kurus: 10000, tarih: "2026-08-03", kategori: "Ulaşım" },
+    ],
+    2026, 8
+  ).reduce((t, d) => t + d.yuzde, 0),
+  100
+);
+
+baslik("Depolama tamamen kapalıysa uygulama ayakta kalıyor");
+// Kullanıcı tarayıcı ayarlarından site verilerini kapatırsa getItem'in
+// KENDİSİ hata atar. Eskiden bu hata açılıştaki ilk okumada patlıyor ve
+// uygulama hiç çizilmiyordu.
+depoyuTemizle();
+const gercekGetItem = localStorage.getItem;
+localStorage.getItem = () => {
+  throw new Error("SecurityError: depolama kapalı");
+};
+console.error = () => {};
+let patladiMi = false;
+let okunan = null;
+try {
+  okunan = V.kayitlariOku();
+} catch (e) {
+  patladiMi = true;
+}
+console.error = eskiHataYazici;
+localStorage.getItem = gercekGetItem;
+dogru("okuma hata fırlatmıyor", patladiMi === false);
+esit("boş liste dönüyor", Array.isArray(okunan) ? okunan.length : -1, 0);
+
+baslik("Yedeğin sürüm alanı metinle atlatılamıyor");
+hataAtmali("sürüm metin olarak gelirse reddediliyor", () =>
+  V.yedekOku(JSON.stringify({ surum: "3", kayitlar: [] }))
+);
+hataAtmali("sürüm sayı ama gelecekten ise reddediliyor", () =>
+  V.yedekOku(JSON.stringify({ surum: V.SURUM + 1, kayitlar: [] }))
+);
+esit(
+  "sürüm alanı hiç yoksa (eski zarf) kabul ediliyor",
+  V.yedekOku(JSON.stringify({ kayitlar: [] })).kayitlar.length,
+  0
+);
+
+baslik("Dev yedek dosyası telefonu dondurmadan reddediliyor");
+dogru("boyut sınırı tanımlı", js.includes("AZAMI_YEDEK_BAYT"));
+dogru("dosya boyutu okunmadan önce sınanıyor", /dosya\.size > AZAMI_YEDEK_BAYT/.test(js));
+dogru("dosya okunamazsa sebebi söyleniyor", js.includes('alert("Dosya okunamadı'));
 
 // ============================================================
 // SONUÇ

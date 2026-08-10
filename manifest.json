@@ -9,7 +9,7 @@
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#f4f6f8",
-  "theme_color": "#0d9488",
+  "theme_color": "#007f73",
   "categories": ["finance"],
   "icons": [
     {

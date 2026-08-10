@@ -25,6 +25,25 @@ function bul(id) {
 function goster(oge) { oge.classList.remove("gizli"); }
 function gizle(oge) { oge.classList.add("gizli"); }
 
+// Depoya YAZAN her düğme bu kapıdan geçer. İş başarılıysa true döner.
+//
+// NEDEN GEREKLİ (denetim bulgusu): veri.js/depoYaz üç durumda hata fırlatır —
+// cihazın deposu dolu, tarayıcı gizli modda, ya da raftaki veri okunamıyor
+// (üzerine yazma koruması). Bu hatalar silme ve atlama düğmelerinde HİÇ
+// yakalanmıyordu: kullanıcı çöp kutusuna basıyor, kayıt silinmiyor ve ekranda
+// hiçbir açıklama çıkmıyordu. Sessiz başarısızlık, hata mesajından beterdir —
+// kullanıcı yanlış bir şey yaptığını sanır ya da işin olduğunu zanneder.
+function depoyaYaz(is) {
+  try {
+    is();
+    return true;
+  } catch (hata) {
+    // Kasadan gelen mesajlar zaten Türkçe ve ne yapılacağını söylüyor.
+    alert(hata.message);
+    return false;
+  }
+}
+
 // ============================================================
 // SEKMELER (Özet / Ekle)
 // ============================================================
@@ -37,7 +56,19 @@ function sekmeGoster(ad) {
   // Alt çubukta hangi düğme vurgulu görünecek.
   // data-sekme="ozet" yazdığımız yeri JavaScript'te dugme.dataset.sekme diye okuyoruz.
   document.querySelectorAll(".sekme").forEach((dugme) => {
-    dugme.classList.toggle("aktif", dugme.dataset.sekme === ad);
+    const secili = dugme.dataset.sekme === ad;
+    dugme.classList.toggle("aktif", secili);
+
+    // GÖRÜNENİN YANINDA DUYULANI DA GÜNCELLE (denetim bulgusu):
+    // "aktif" sınıfı yalnızca bir RENK değişikliği; ekran okuyucu rengi
+    // görmez. aria-selected olmadan kullanıcı "Rapor, sekme" duyuyor ama
+    // o sekmede olup olmadığını bilmiyordu.
+    dugme.setAttribute("aria-selected", secili ? "true" : "false");
+
+    // tabindex: sekme çubuğunda Tab tuşu ÜÇ durak yapmasın, tek durak
+    // yapsın; duraklar arasında ok tuşlarıyla gezilir. Sekme düğmeleri
+    // için beklenen davranış budur (aşağıdaki ok tuşu dinleyicisi).
+    dugme.tabIndex = secili ? 0 : -1;
   });
 }
 
@@ -45,6 +76,25 @@ function sekmeGoster(ad) {
 // addEventListener = "bu olay olursa şu işi yap" demek.
 document.querySelectorAll(".sekme").forEach((dugme) => {
   dugme.addEventListener("click", () => sekmeGoster(dugme.dataset.sekme));
+});
+
+// Sekmeler arasında ok tuşlarıyla gezinme.
+//
+// NEDEN: role="tab" verdiğimiz anda ekran okuyucu kullanan biri ok
+// tuşlarının çalışmasını BEKLER — rolü verip davranışı vermemek, sözü
+// tutmamak olurdu. Sona gelince başa dönüyor (modulo işlemi).
+document.querySelector(".alt-bar").addEventListener("keydown", (olay) => {
+  if (olay.key !== "ArrowRight" && olay.key !== "ArrowLeft") return;
+  const dugmeler = [...document.querySelectorAll(".sekme")];
+  const simdiki = dugmeler.indexOf(document.activeElement);
+  if (simdiki === -1) return;
+
+  olay.preventDefault(); // sayfa yana kaymasın
+  const adim = olay.key === "ArrowRight" ? 1 : -1;
+  // + dugmeler.length: JavaScript'te -1 % 3 eksi çıkar, bu ekleme onu düzeltir.
+  const hedef = dugmeler[(simdiki + adim + dugmeler.length) % dugmeler.length];
+  sekmeGoster(hedef.dataset.sekme);
+  hedef.focus();
 });
 
 // ============================================================
@@ -308,7 +358,7 @@ bul("kayit-listesi").addEventListener("click", (olay) => {
   );
   if (!onay) return;
 
-  kayitSil(kayit.id);
+  if (!depoyaYaz(() => kayitSil(kayit.id))) return;
   ozetiYenile();
   bildir("Kayıt silindi");
 });
@@ -406,19 +456,31 @@ bul("tekrar-listesi").addEventListener("click", (olay) => {
   const tarih = dugme.dataset.tarih;
   if (!sablonId || !tarih) return;
 
+  // Kasa artık yalnızca SIRADAKİ (en eski bekleyen) dönemi işliyor — aradaki
+  // ayların sessizce yok olmaması için (bkz. veri.js/tekrarOnayla). Kullanıcı
+  // alttaki bir satıra basarsa iş yapılmaz; bunu SÖYLEMEK zorundayız, yoksa
+  // düğme bozukmuş gibi görünür.
+  const SIRA_MESAJI = "Önce en üstteki (en eski) satırı işle";
+
   if (dugme.classList.contains("tekrar-ekle")) {
     try {
       const kayit = tekrarOnayla(sablonId, tarih);
-      if (!kayit) return;
-      bildir((kayit.aciklama || turAdi(kayit.tur)) + " eklendi ✓");
+      if (kayit) {
+        bildir((kayit.aciklama || turAdi(kayit.tur)) + " eklendi ✓");
+      } else {
+        bildir(SIRA_MESAJI);
+      }
     } catch (hata) {
       // Şablonun kategorisi silinmiş olabilir; kasa Türkçe bir mesajla
       // durduruyor, biz de onu olduğu gibi gösteriyoruz.
       alert(hata.message);
     }
   } else {
-    tekrarAtla(sablonId, tarih);
-    bildir("Atlandı");
+    // Atlama da depoya yazıyor: dolu depo ya da bozuk raf hatası buradan da
+    // çıkabilir, sessizce yutulmasın.
+    let atlandi = false;
+    if (!depoyaYaz(() => { atlandi = tekrarAtla(sablonId, tarih); })) return;
+    bildir(atlandi ? "Atlandı" : SIRA_MESAJI);
   }
 
   tekrarSonrasiYenile();
@@ -507,15 +569,16 @@ bul("sablon-listesi").addEventListener("click", (olay) => {
   if (!sablon) return;
 
   const etiket = sablon.aciklama || turAdi(sablon.tur);
-  // DİKKAT: metnin içinde satır sonundan hemen sonra parantez AÇMIYORUZ.
-  // testler.js "isim(" kalıbıyla fonksiyon çağrısı arıyor; "\n(" dizisi
-  // ona "n(" diye bir çağrı gibi görünüyor ve boş yere hata veriyor.
+  // (Eskiden burada bir uyarı vardı: metin içinde parantez açmaktan kaçın,
+  //  yoksa testler.js onu fonksiyon çağrısı sanıyor. O kısıt 2026-08-10'da
+  //  kalktı — tarayıcı artık metinleri taramadan önce ayıklıyor. Kullanıcıya
+  //  gösterilen cümleyi bir testin sınırına göre eğmek zorunda değiliz.)
   const onay = confirm(
     `"${etiket}" — ${kurusYaz(sablon.kurus)}\n\nBu yinelenen işlem silinsin mi?\n\nDaha önce eklenmiş kayıtlar silinmez.`
   );
   if (!onay) return;
 
-  sablonSil(sablon.id);
+  if (!depoyaYaz(() => sablonSil(sablon.id))) return;
   sablonlariCiz();
   tekrarlariGoster();
   bildir("Yinelenen işlem silindi");
@@ -674,7 +737,9 @@ function trendCubuguYap(x, yuksek, sinif) {
 
 function trendiCiz(kayitlar) {
   const grafik = bul("trend-grafik");
+  const liste = bul("trend-liste");
   grafik.innerHTML = "";
+  liste.innerHTML = "";
 
   const trend = aylikTrend(kayitlar, secilenAy.yil, secilenAy.ay, TREND_AY_SAYISI);
 
@@ -682,12 +747,37 @@ function trendiCiz(kayitlar) {
   // ibaret bir grafik kullanıcıya "bozuk mu?" dedirtirdi.
   if (trend.every((a) => a.gelir === 0 && a.gider === 0)) {
     gizle(grafik);
+    gizle(liste);
     goster(bul("trend-bos"));
     return;
   }
 
   gizle(bul("trend-bos"));
   goster(grafik);
+  goster(liste);
+
+  // Grafiğin yazılı karşılığı: her ay için bir satır. Çizim aria-hidden
+  // olduğu için ekran okuyucunun okuyabildiği TEK kaynak burası; gören
+  // kullanıcı da çubukların tam tutarını ancak buradan görüyor.
+  for (const ay of trend) {
+    const satir = document.createElement("li");
+    satir.className = "trend-satir";
+
+    const adYazi = document.createElement("span");
+    adYazi.className = "trend-satir-ay";
+    // Sondaki boşluk BİLEREK duruyor. Ekranda görünmüyor (iki kutu zaten
+    // iki yana yaslı), ama ekran okuyucu iki kutunun yazısını arka arkaya
+    // okuyor: boşluk olmasaydı "Mart 2026gelir" diye tek kelime duyulurdu.
+    adYazi.textContent = ayAdi(ay.yil, ay.ay) + " ";
+    satir.appendChild(adYazi);
+
+    const tutarlar = document.createElement("span");
+    tutarlar.className = "trend-satir-tutar";
+    tutarlar.textContent = "gelir " + kurusSade(ay.gelir) + " ₺ · gider " + kurusSade(ay.gider) + " ₺";
+    satir.appendChild(tutarlar);
+
+    liste.appendChild(satir);
+  }
 
   // Taban çizgisi. Çubuklar havada durmasın, oturacakları bir zemin olsun.
   const eksen = svgOge("line");
@@ -765,10 +855,22 @@ function hataGoster(mesaj) {
   const p = bul("form-hata");
   p.textContent = mesaj;
   goster(p);
+
+  // Hatanın hangi ALANLA ilgili olduğunu da söylüyoruz. aria-invalid:
+  // "bu kutudaki değer geçersiz". aria-describedby: "açıklaması şu
+  // öğede". İkisi olmadan ekran okuyucu hatayı okuyor ama kullanıcı
+  // hangi kutuya döneceğini bilmiyordu. Hatalarımızın hemen hepsi
+  // tutar alanından geliyor (tlToKurus), o yüzden işaret oraya.
+  const alan = bul("alan-tutar");
+  alan.setAttribute("aria-invalid", "true");
+  alan.setAttribute("aria-describedby", "form-hata");
 }
 
 function hataGizle() {
   gizle(bul("form-hata"));
+  const alan = bul("alan-tutar");
+  alan.removeAttribute("aria-invalid");
+  alan.removeAttribute("aria-describedby");
 }
 
 // Kaydettikten sonra Özet ekranında 3 saniyelik bir bilgi göster.
@@ -913,6 +1015,24 @@ bul("yedek-dosya").addEventListener("change", () => {
   const dosya = bul("yedek-dosya").files[0];
   if (!dosya) return; // pencereyi açıp vazgeçti
 
+  // BOYUT SINIRI (denetim bulgusu): dosya önce bütünüyle metne, sonra
+  // bütünüyle JavaScript nesnelerine, sonra üçüncü kez temiz kayıt
+  // listesine çevriliyor. Yanlışlıkla seçilen 50 MB'lık bir dosya telefonu
+  // dakikalarca dondurur ya da işletim sistemi sekmeyi kapatır — üstelik
+  // hata mesajı bile göremezsin. Gerçek bir yedek bu kadar büyük olamaz:
+  // deponun kendisi zaten ~5 MB ile sınırlı, girintili JSON en kötü onun
+  // birkaç katı. 20 MB fazlasıyla geniş bir tavan.
+  const AZAMI_YEDEK_BAYT = 20 * 1024 * 1024;
+  if (dosya.size > AZAMI_YEDEK_BAYT) {
+    const mb = (dosya.size / 1024 / 1024).toFixed(1);
+    alert(
+      `Bu dosya çok büyük (${mb} MB) ve bir yedek dosyasına benzemiyor. ` +
+        `Uygulamanın ürettiği yedekler en fazla birkaç MB olur. Doğru dosyayı seçtiğinden emin ol.`
+    );
+    bul("yedek-dosya").value = "";
+    return;
+  }
+
   // text(): dosyanın içeriğini okur. Disk işi olduğu için anında bitmez;
   // sonucu .then ile bekliyoruz.
   dosya.text().then((metin) => {
@@ -944,7 +1064,11 @@ bul("yedek-dosya").addEventListener("change", () => {
       );
       if (!onay) return;
 
-      depoYaz(yedek);
+      // zorla: true — geri yükleme, "üzerine yazma korumasını" bilerek aşan
+      // TEK yer. Kullanıcı yukarıdaki onay penceresinde üzerine yazmayı zaten
+      // kabul etti; üstelik depo okunamayacak kadar bozuksa geri yükleme tam
+      // da bu yüzden yapılıyor olabilir (bkz. veri.js/depoYaz).
+      depoYaz(yedek, { zorla: true });
       secilenAy = bugununAyi();
       ozetiYenile();
       // Geri yükleme deponun HER bölümünü değiştirdi; sadece Özet değil,
@@ -961,6 +1085,12 @@ bul("yedek-dosya").addEventListener("change", () => {
     } catch (hata) {
       alert("Yedek yüklenemedi.\n\n" + hata.message);
     }
+  }).catch((hata) => {
+    // Dosyanın kendisi okunamadıysa (telefon dosyayı taşımış, izin
+    // kalkmış, bulut dosyası inmemiş) buraya düşüyoruz. Eskiden .catch
+    // yoktu: kullanıcı dosyayı seçiyor, hiçbir şey olmuyor, sebebini
+    // öğrenemiyordu.
+    alert("Dosya okunamadı.\n\n" + hata.message);
   });
 
   // Seçimi sıfırla: aynı dosya ikinci kez seçilirse tarayıcı
@@ -983,6 +1113,55 @@ yedekDurumunuGoster();
 // Panel EN SON çiziliyor: ozetiYenile'den sonra çağırıyoruz ki sıra
 // karışıp da az önce onaylanmış bir kayıt eksik görünmesin.
 tekrarlariGoster();
+
+// ============================================================
+// GÜN DEĞİŞİMİ — gece yarısını geçen uygulama
+// ============================================================
+//
+// DİKKAT (denetim bulgusu): tarih alanı yukarıdaki satırda BİR KEZ dolduruluyor
+// ve eskiden bu dosyada sayfanın yeniden görünmesini dinleyen hiçbir şey yoktu.
+// Ana ekrana eklenmiş bir uygulama telefonda günlerce bellekte kalır — sayfa
+// yeniden yüklenmez. Sonuç: 31 Ağustos akşamı açık bırakılan uygulamada
+// 1 Eylül sabahı girilen market harcaması sessizce 31 AĞUSTOS'a yazılıyordu.
+// Ağustos'un gideri şişiyor, Eylül'ünki eksik kalıyordu; üstelik formu
+// temizlemek tarihi bilerek korudugu için sonraki kayıtlar da yanlış güne
+// gidiyordu. Hiçbir uyarı yoktu.
+
+// En son hangi günü "bugün" saydığımız. Karşılaştırma noktamız bu.
+let sonBilinenGun = bugununTarihi();
+
+function gunDegistiyseTazele() {
+  const bugun = bugununTarihi();
+  if (bugun === sonBilinenGun) return; // gün değişmemiş, yapacak iş yok
+
+  const eskiGun = sonBilinenGun;
+  sonBilinenGun = bugun;
+
+  // Tarih alanını YALNIZCA kullanıcı ona dokunmadıysa güncelliyoruz.
+  // Bilerek geçmiş bir tarih seçtiyse onun seçimini ezmek saygısızlık olurdu;
+  // alanda hâlâ bizim yazdığımız eski "bugün" duruyorsa serbestiz.
+  const alan = bul("alan-tarih");
+  if (alan.value === eskiGun) alan.value = bugun;
+
+  // Ekranda "bu ay"a bakılıyorduysa yeni aya geçiyoruz. Kullanıcı ay oklarıyla
+  // bilerek eski bir aya gittiyse onu yerinden oynatmıyoruz.
+  const eskiAy = { yil: Number(eskiGun.slice(0, 4)), ay: Number(eskiGun.slice(5, 7)) };
+  if (ayniAy(secilenAy, eskiAy)) secilenAy = bugununAyi();
+
+  // Gün değiştiyse zamanı gelen yeni tekrarlar ve yedek uyarısı da tazelenmeli.
+  ozetiYenile();
+  tekrarlariGoster();
+  yedekDurumunuGoster();
+}
+
+// visibilitychange: uygulamaya/sekmeye geri dönüldüğünde çalışır — telefonu
+// cebe koyup ertesi gün açmanın yakalandığı yer burası.
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden) gunDegistiyseTazele();
+});
+// pageshow: tarayıcının "geri" tuşuyla bellekten geri getirdiği sayfayı da
+// yakalar; visibilitychange orada her zaman çalışmıyor.
+window.addEventListener("pageshow", gunDegistiyseTazele);
 
 // ============================================================
 // SERVICE WORKER — çevrimdışı çalışma

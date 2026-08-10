@@ -17,25 +17,34 @@
   --kenar: #e6eaee;
   --bastirilmis: #eef1f4;
 
-  /* Yazı renkleri — koyudan soluğa */
+  /* Yazı renkleri — koyudan soluğa
+     DİKKAT — OKUNURLUK ÖLÇÜSÜ (2026-08-10 denetimi): aşağıdaki tonlar
+     gözle değil HESAPLANARAK seçildi. Bir yazının zeminiyle arasındaki
+     kontrast oranı en az 4,5 olmalı (WCAG AA); altına düşen yazı güneşte,
+     yorgun gözle ya da ucuz bir ekranda okunmuyor. Eski --yazi-cok-soluk
+     (#8b929a) beyaz üstünde 3,15 idi — ölçütün epey altında.
+     Renk değiştirirken oranı yeniden hesapla, gözüne güvenme. */
   --yazi: #14181d;
-  --yazi-soluk: #5b636c;
-  --yazi-cok-soluk: #8b929a;
+  --yazi-soluk: #5b636c;      /* zemin üstünde 5,63 */
+  --yazi-cok-soluk: #6a7179;  /* eskiden #8b929a (2,90) -> şimdi 4,56 */
 
-  /* Ana vurgu rengi */
-  --vurgu: #0d9488;
-  --vurgu-koyu: #0b7c72;
+  /* Ana vurgu rengi.
+     --vurgu iki işi birden yapıyor: hem yazı rengi, hem beyaz yazı taşıyan
+     düğme zemini. Bu yüzden İKİ yönde de ölçütü geçmesi gerekiyordu:
+     zemin üstünde 4,53 · üstündeki beyaz yazı 4,90. */
+  --vurgu: #007f73;        /* eskiden #0d9488 (3,46 / 3,74) */
+  --vurgu-koyu: #00625a;   /* basılı hâl; --vurgu'dan ayırt edilebilir kalsın diye ayrıca koyu */
   --vurgu-solgun: #f2fbf9;
 
   /* Kayıt türlerinin renkleri */
-  --gelir: #16a34a;
-  --gider: #dc2626;
+  --gelir: #008229;   /* eskiden #16a34a (3,04) -> şimdi 4,59 */
+  --gider: #cf2020;   /* eskiden #dc2626 (4,46 — kıl payı altında) -> şimdi 5,00 */
   --gider-acik: #f87171; /* koyu zemin üstünde okunabilen açık kırmızı */
   --yatirim: #4f46e5;
 
   /* Bütçe çubuğunun "limite yaklaşıyorsun" rengi (kehribar).
      İyi durum --vurgu, aşılma --gider kullanıyor; yeni renk sadece bu. */
-  --uyari: #d97706;
+  --uyari: #b55300;   /* eskiden #d97706 (2,94) -> şimdi 4,61 */
 
   /* Halka grafiğin dilim renkleri. Sıra veri.js'teki KATEGORILER
      listesine KİLİTLİ: --kategori-1 = Market, --kategori-2 = Fatura...
@@ -267,7 +276,9 @@ button {
 .tekrar-ekle,
 .tekrar-atla {
   min-width: 52px;
-  min-height: 40px;
+  /* 44: "Ekle" ile "Atla" yan yana duruyor ve biri kayıt üretip öteki
+     üretmiyor — burada yanlış dokunmak doğrudan yanlış veri demek. */
+  min-height: 44px;
   flex-shrink: 0;
   font-size: 13px;
   font-weight: 600;
@@ -344,10 +355,14 @@ button {
 }
 
 .ay-ok {
-  /* 42x42: parmakla rahat basılacak ölçü. Erişilebilirlik kılavuzları
-     dokunma alanı için en az 44px öneriyor; kenarlıkla birlikte oradayız. */
-  width: 42px;
-  height: 42px;
+  /* 44x44: dokunma hedefi için önerilen en küçük ölçü.
+     DİKKAT: burada eskiden 42px yazıyor ve yorumda "kenarlıkla birlikte
+     oradayız" deniyordu. Değildik — kenarlık kutu ölçüsünün İÇİNDE kalıyor
+     (box-sizing: border-box), yani dışarı 2px eklemiyor. Denetimde ölçüldü,
+     gerçek dokunma alanı 42px'ti. Yürürken basılan bir düğme için o 2px
+     yanlış aya geçmekle doğru aya geçmek arasındaki fark olabiliyor. */
+  width: 44px;
+  height: 44px;
   flex-shrink: 0;
   font-size: 12px;
   color: var(--yazi-soluk);
@@ -370,7 +385,10 @@ button {
   color: var(--vurgu);
   background: none;
   border: none;
-  padding: 8px 12px;
+  /* Dikey dolgu 8 -> 13: yazı aynı yerde duruyor ama dokunma kutusu
+     35px'ten 44px'e çıkıyor (13 + 18 satır yüksekliği + 13). */
+  padding: 13px 12px;
+  min-height: 44px;
   cursor: pointer;
   text-decoration: underline;
 }
@@ -497,8 +515,11 @@ button {
 .tutar-yatirim { color: var(--yatirim); }
 
 .sil {
-  width: 40px;
-  height: 40px;
+  /* 44x44: simge aynı boyutta kalıyor (font-size değişmedi), yalnız
+     basılabilir kutu büyüdü. Silme düğmesinde yanlış dokunmanın bedeli
+     yüksek — yanındaki satırın kaydını silmek gibi. */
+  width: 44px;
+  height: 44px;
   flex-shrink: 0;
   font-size: 15px;
   line-height: 1;
@@ -690,8 +711,9 @@ button {
 }
 
 .sablon-sil {
-  width: 40px;
-  height: 40px;
+  /* Kayıt silmedeki ölçünün aynısı — bkz. .sil */
+  width: 44px;
+  height: 44px;
   flex-shrink: 0;
   font-size: 15px;
   line-height: 1;
@@ -775,6 +797,37 @@ button {
   display: flex;
   flex-direction: column;
   gap: 6px;
+}
+
+/* Altı aylık grafiğin YAZILI karşılığı. Halka grafiğin lejantıyla aynı
+   iş: çizimi göremeyen (ya da okuyamayan) biri de sayıları alsın. */
+.trend-liste {
+  list-style: none;
+  padding: 0;
+  margin: 12px 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.trend-satir {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+  font-size: 13px;
+  /* Uzun ay adı + iki tutar dar ekranda tek satıra sığmayabilir;
+     sığmazsa alt satıra insin, yana taşmasın. */
+  flex-wrap: wrap;
+}
+
+.trend-satir-ay {
+  color: var(--yazi-soluk);
+}
+
+.trend-satir-tutar {
+  color: var(--yazi);
+  font-variant-numeric: tabular-nums;
 }
 
 .halka-satir {
