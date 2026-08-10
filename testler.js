@@ -1582,19 +1582,33 @@ baslik("Girdi puntosu — iPhone'un yakınlaştırma eşiği");
 //
 // Neo telefonda bildirdi (2026-08-10): yazı yazmak için bir kutuya
 // dokununca sayfa yakınlaşıyor ve klavye kapanınca eski hâline dönmüyor.
-// Ölçüldü: yazı yazılan 12 kutunun 12'si de tam 16px'ti, yani kuralın
-// TAM SINIRINDA duruyorduk. iPhone "16'nın altındaysa yakınlaştır" der;
-// sınırda durmak, yuvarlama yüzünden sınırın altına düşme riskini
-// taşır. 17'ye çıkarıldı ve değer tek bir yerde toplandı.
 //
-// Bu test, o değerin ileride "biraz küçültelim" diye geri çekilmesini
-// engelliyor. Bir kutu küçülürse telefonda yaşanan rahatsızlık geri gelir
-// ve sebebi kimsenin aklına gelmez.
+// İLK TEŞHİS YANLIŞTI. "16'nın tam sınırındayız, 17 yapalım" denmişti;
+// 17 gönderildi, cihaza indiği doğrulandı ve sorun AYNEN sürdü. Sebep
+// 2026-08-11'de cihazda ölçülerek bulundu (tani.html):
+//
+//   Belirleyici olan CSS'te yazan sayı değil, yazının ekranda kaç punto
+//   GÖRÜNDÜĞÜ. Safari'nin site başına yakınlaştırma ayarı sayfayı
+//   küçültüyorsa (Neo'da %85) değer o oranla çarpılıyor:
+//   17 × 0,85 = 14,45 → 16'nın altı → iPhone büyütüyor.
+//
+// Ölçüm: sayfa 0,85'te açılıyor, kutuya dokununca 0,94'e çıkıyordu.
+// 16 ÷ 17 = 0,94. iPhone tam kuralı sağlayacak kadar büyütmüş.
+//
+// EŞİK NEDEN 19: iPhone'un isteyeceği oran 16 ÷ punto. Bunun %85'in
+// ALTINDA kalması gerekiyor ki büyütmeye gerek duymasın:
+//   16 ÷ punto < 0,85  →  punto > 18,8  →  en az 19.
+// 20 seçildi (16 ÷ 20 = 0,80, biraz da pay var). Cihazda sınandı:
+// 20 punto temiz, 13 punto yakınlaştırdı.
+//
+// Bu test değerin ileride "biraz küçültelim" diye geri çekilmesini
+// engelliyor. Küçülürse telefondaki rahatsızlık geri gelir ve sebebi
+// kimsenin aklına gelmez — nitekim üç tur boyunca gelmedi.
 const girdiPunto = cssYorumsuz.match(/--girdi-punto\s*:\s*(\d+(?:\.\d+)?)px/);
 dogru("girdi puntosu tek yerde tanımlı", Boolean(girdiPunto));
 dogru(
-  `girdi puntosu 16'nın üstünde (${girdiPunto ? girdiPunto[1] : "?"}px)`,
-  Boolean(girdiPunto) && Number(girdiPunto[1]) > 16
+  `girdi puntosu en az 19 (${girdiPunto ? girdiPunto[1] : "?"}px) — %85 küçültmede bile 16'nın üstünde görünsün`,
+  Boolean(girdiPunto) && Number(girdiPunto[1]) >= 19
 );
 // Yazı yazılan her kutu bu değişkeni kullanmalı; biri elle 14px yazarsa
 // yukarıdaki denetim onu göremezdi.
@@ -1610,6 +1624,18 @@ for (const secici of [".alan input,\n.alan select", ".butce-form-alan"]) {
 dogru(
   "girdi kurallarında elle yazılmış 16px kalmadı",
   !/\.(alan input|butce-form-alan)[^}]*font-size:\s*16px/s.test(cssYorumsuz)
+);
+// Punto büyüyünce sabit genişlikli tek kutu dar kaldı: bütçe kutusu.
+// Ölçüldü (2026-08-11, 20px ile): "1.250.750,45" 130px'te taşıyor,
+// 145px'ten itibaren sığıyor. Kutu sağa dayalı olduğu için taşma
+// SESSİZDİR — rakamın başı kaybolur, kullanıcı yanlış sayıyı okur.
+const butceBlok = cssYorumsuz.slice(cssYorumsuz.indexOf(".butce-form-alan"));
+const butceGenislik = butceBlok
+  .slice(0, butceBlok.indexOf("}"))
+  .match(/width\s*:\s*(\d+)px/);
+dogru(
+  `bütçe kutusu en az 145px (${butceGenislik ? butceGenislik[1] : "?"}px) — 20 puntoda milyonlu rakam sığsın`,
+  Boolean(butceGenislik) && Number(butceGenislik[1]) >= 145
 );
 
 baslik("Klavye açıkken alt çubuk çekiliyor");

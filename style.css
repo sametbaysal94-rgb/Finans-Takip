@@ -80,17 +80,33 @@
   --sayfa-bosluk: 16px;
 
   /* YAZI YAZILAN KUTULARIN PUNTOSU — bu değeri düşürme.
-     iPhone, dokunulan bir kutunun puntosu 16'nın ALTINDAysa sayfayı
-     kendiliğinden yakınlaştırıyor ve klavye kapanınca eski hâline
-     dönmüyor; kullanıcı her seferinde parmağıyla küçültmek zorunda kalıyor.
-     Uzun süre 16 yazıyordu — yani kuralın tam sınırında duruyorduk.
-     Sınırda durmak sınırın gerisinde durmakla aynı şey değil: yazı tipi
-     ölçüleri, ekranın piksel oranı ve iOS'un kendi yuvarlaması işin içine
-     girince hesaplanan değer kılpayı 16'nın altına düşebiliyor.
-     17 diyerek sınırı tamamen terk ediyoruz; gözle fark edilmiyor.
+     iPhone, dokunulan bir kutunun yazısı ekranda 16'dan KÜÇÜK
+     görünüyorsa sayfayı kendiliğinden yakınlaştırıyor ve klavye
+     kapanınca eski hâline dönmüyor.
+
+     ASIL MESELE — 2026-08-11'de cihazda ÖLÇÜLDÜ (tani.html):
+     Belirleyici olan burada yazan sayı değil, yazının ekranda kaç punto
+     GÖRÜNDÜĞÜ. Safari'nin site başına yakınlaştırma ayarı sayfayı
+     küçültüyorsa (Neo'nun telefonunda %85) buradaki değer o oranla
+     çarpılıyor:  17 × 0,85 = 14,45  → 16'nın altı → iPhone büyütüyor.
+
+     Ölçüm bunu kesinleştirdi: sayfa 0,85'te açılıyordu, kutuya
+     dokununca oran 0,94'e çıkıyordu. 16 ÷ 17 = 0,94 — yani iPhone
+     tam 17 puntoyu 16'ya taşıyacak kadar büyütmüş. Tahmin değil, hesap.
+
+     BU YÜZDEN 20:  iPhone'un isteyeceği oran 16 ÷ 20 = 0,80.
+     Kullanıcı %85'te de %100'de de bunun ÜSTÜNDE kalıyor, dolayısıyla
+     büyütmeye hiç gerek duymuyor. Cihazda sınandı: 20 punto temiz,
+     13 punto yakınlaştırdı.
+
+     SINIRI: sayfa %80'in altına küçültülürse (Safari'nin bir sonraki
+     kademesi %75) sorun geri gelir. O gün gelirse çare puntoyu yine
+     büyütmek değil, viewport tarafına bakmaktır — 22, 24 diye
+     tırmanmak kutuları çirkinleştirir.
+
      Değer BURADA tek yerde duruyor — eskiden iki ayrı kuralda tekrar
      ediyordu ve birinin unutulması işten bile değildi. */
-  --girdi-punto: 17px;
+  --girdi-punto: 20px;
 }
 
 /* ============================================================
@@ -660,7 +676,12 @@ button {
 }
 
 .butce-form-alan {
-  width: 130px;
+  /* 130px'ti; girdi puntosu 17'den 20'ye çıkınca (bkz. :root/--girdi-punto)
+     milyonlu bir rakam kutuya sığmaz oldu. Ölçüldü: "1.250.750,45" 130px'te
+     taşıyor, 145px'ten itibaren sığıyor. 150 seçildi — pay kalsın.
+     Kutu sağa dayalı olduğu için taşma sessizdir: rakamın BAŞI kaybolur,
+     kullanıcı yanlış sayıya bakar. Bu yüzden dar bırakmak güvenli değil. */
+  width: 150px;
   /* Gerekçe :root/--girdi-punto'da yazılı — iPhone'un yakınlaştırma eşiği. */
   font-size: var(--girdi-punto);
   font-family: inherit;

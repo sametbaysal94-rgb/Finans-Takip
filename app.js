@@ -20,7 +20,7 @@ let secilenAy = bugununAyi();
 //
 // DİKKAT: bu değer service-worker.js'teki ONBELLEK sürümüyle AYNI olmalı.
 // İkisi ayrışırsa gösterilen sürüm yalan söyler; testler.js bunu denetliyor.
-const UYGULAMA_SURUMU = "v11";
+const UYGULAMA_SURUMU = "v12";
 
 // ============================================================
 // ARAYÜZ YARDIMCILARI
