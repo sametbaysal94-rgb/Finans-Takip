@@ -1166,13 +1166,17 @@ button {
    ALT SEKME ÇUBUĞU
    ============================================================ */
 
-/* Sürüm satırı — Yedekleme bölümünün en altında, küçük ve sessiz.
-   Bilgi vermek için var, dikkat çekmek için değil. */
+/* Sürüm — başlığın hemen yanında, küçük ve sessiz.
+   Önce Yedekleme bölümünün dibindeydi; oraya ulaşmak için sayfayı sonuna
+   kadar kaydırmak gerekiyordu ve "hangi sürüm sende?" sorusu tam da
+   telefonda hızlı bakılması gereken bir soru. Başlığın yanı, kaydırmadan
+   görülen tek yer. */
 .surum-satiri {
-  margin: 12px 0 0;
   font-size: 12px;
+  font-weight: 500;
   color: var(--yazi-cok-soluk);
-  text-align: center;
+  letter-spacing: 0;
+  vertical-align: middle;
 }
 
 /* KLAVYE AÇIKKEN ALT ÇUBUK ÇEKİLİYOR.

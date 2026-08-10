@@ -20,7 +20,7 @@ let secilenAy = bugununAyi();
 //
 // DİKKAT: bu değer service-worker.js'teki ONBELLEK sürümüyle AYNI olmalı.
 // İkisi ayrışırsa gösterilen sürüm yalan söyler; testler.js bunu denetliyor.
-const UYGULAMA_SURUMU = "v10";
+const UYGULAMA_SURUMU = "v11";
 
 // ============================================================
 // ARAYÜZ YARDIMCILARI
@@ -35,6 +35,31 @@ function bul(id) {
 // Öğeleri silmek yerine bu sınıfı ekleyip çıkararak gösterip saklıyoruz.
 function goster(oge) { oge.classList.remove("gizli"); }
 function gizle(oge) { oge.classList.add("gizli"); }
+
+// Sürümü başlığın yanına yazar.
+//
+// DİKKAT — KENDİ KAZDIĞIM ÇUKUR (2026-08-10): sürüm göstergesini önce
+// index.html'e bir öğe koyup buradan doldurarak yaptım. O hâliyle şu
+// tuzağa açıktı: tarayıcı ESKİ index.html'i önbellekten verip YENİ app.js'i
+// indirirse, aradığımız öğe sayfada olmaz, `null.textContent` hata fırlatır
+// ve açılış bloğunun geri kalanı HİÇ çalışmaz — uygulama boş açılırdı.
+// Tam da denetimde "kısmi güncelleme" diye uyardığımız tuzak.
+//
+// Şimdi öğe yoksa kendimiz kuruyoruz. Ayrıca bu, göstergeyi eski HTML'le
+// bile çalışır kılıyor: sürüm bilgisine en çok ihtiyaç duyduğumuz an,
+// tam da dosyaların birbirini tutmadığı andır.
+function surumuGoster() {
+  let satir = bul("surum-satiri");
+  if (!satir) {
+    satir = document.createElement("span");
+    satir.id = "surum-satiri";
+    satir.className = "surum-satiri";
+    const baslik = document.querySelector(".ust-bar h1") || document.querySelector(".ust-bar");
+    if (baslik) baslik.appendChild(satir);
+    else document.body.insertBefore(satir, document.body.firstChild);
+  }
+  satir.textContent = UYGULAMA_SURUMU;
+}
 
 // Depoya YAZAN her düğme bu kapıdan geçer. İş başarılıysa true döner.
 //
@@ -1113,7 +1138,7 @@ bul("yedek-dosya").addEventListener("change", () => {
 // BAŞLANGIÇ — sayfa açıldığında bir kez çalışan satırlar
 // ============================================================
 
-bul("surum-satiri").textContent = "Sürüm " + UYGULAMA_SURUMU;
+surumuGoster();
 kategorileriDoldur();
 butceFormunuDoldur();
 sablonlariCiz();

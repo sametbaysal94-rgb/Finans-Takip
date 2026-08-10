@@ -1633,6 +1633,21 @@ baslik("Sürüm göstergesi — telefonda hangi sürüm var?");
 // yoktu; her deneme belirsiz kalıyordu.
 dogru("sürüm satırı HTML'de var", html.includes('id="surum-satiri"'));
 dogru("sürüm satırı dolduruluyor", js.includes('bul("surum-satiri")'));
+// Başlığın yanında: telefonda sayfayı sonuna kadar kaydırmadan görülsün.
+dogru("sürüm başlığın yanında", /<h1>[^<]*<span id="surum-satiri"/.test(html));
+// KENDİ KAZDIĞIM ÇUKUR: eski index.html + yeni app.js eşleşirse öğe
+// sayfada olmaz; doğrudan `.textContent` yazmak null hatası verir ve
+// açılış bloğunun tamamı çalışmaz — uygulama boş açılır. Öğe yoksa
+// kendimiz kurmalıyız.
+dogru("sürüm göstergesi kendi öğesini kurabiliyor", js.includes("function surumuGoster("));
+dogru(
+  "eksik öğe durumunda kuruluyor",
+  /if \(!satir\)[\s\S]{0,300}createElement\("span"\)/.test(js)
+);
+dogru(
+  "açılışta doğrudan null'a yazılmıyor",
+  !js.includes('bul("surum-satiri").textContent')
+);
 const appSurum = js.match(/const UYGULAMA_SURUMU = "(v\d+)"/);
 const swSurum = swKod.match(/const ONBELLEK = "finans-takip-(v\d+)"/);
 dogru("app.js sürümü tanımlı", Boolean(appSurum));

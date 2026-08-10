@@ -18,7 +18,7 @@
 // DİKKAT: buradaki sürüm DOSYALARIN sürümü. veri.js'teki SURUM ise
 // VERİNİN yapısı. İkisi ayrı ayrı ilerler; sayıları zamanla birbirini
 // tutmayacak ve bu bir hata değil.
-const ONBELLEK = "finans-takip-v10";
+const ONBELLEK = "finans-takip-v11";
 
 // Bu uygulamanın önbelleklerini tanıtan ön ek. Temizlik yaparken NİYE gerekli:
 // aynı adreste (github.io) yayınlanan başka uygulamaların önbellekleri de
